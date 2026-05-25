@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { compileTemplate } from '../../utils/template';
+import { analyzeTemplate } from '../../utils/spamScanner';
 
 /** Validates basic email format */
 function isValidEmail(e) {
@@ -19,6 +20,7 @@ export default function PreviewPanel({
 }) {
   const [device,       setDevice]       = useState('desktop');  // 'desktop' | 'mobile'
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [reportExpanded, setReportExpanded] = useState(false);
 
   const total = contacts.length;
   const safeIdx = Math.max(0, Math.min(previewIndex, total - 1));
@@ -173,6 +175,70 @@ export default function PreviewPanel({
           }}
         />
       )}
+
+      {/* ── Deliverability Analysis & Score Card ── */}
+      {(() => {
+        const spamAnalysis = analyzeTemplate(subject, body);
+        return (
+          <div className="deliverability-panel">
+            <div className="deliverability-header" onClick={() => setReportExpanded(!reportExpanded)}>
+              <div className="deliverability-title-group">
+                <span className="title">Deliverability Score</span>
+              </div>
+              <div className="deliverability-badge-wrap">
+                <span className="deliverability-score-value">{spamAnalysis.score}/100</span>
+                <span className={`deliverability-grade-badge grade-${spamAnalysis.grade.toLowerCase()}`}>
+                  {spamAnalysis.grade}
+                </span>
+                <span className={`deliverability-toggle-icon ${reportExpanded ? 'expanded' : ''}`}>▼</span>
+              </div>
+            </div>
+            
+            <div className="deliverability-bar-track">
+              <div 
+                className={`deliverability-bar-fill grade-${spamAnalysis.grade.toLowerCase()}`}
+                style={{ width: `${spamAnalysis.score}%` }}
+              />
+            </div>
+
+            {reportExpanded && (
+              <div className="deliverability-report">
+                {spamAnalysis.issues.length === 0 ? (
+                  <div className="deliverability-empty">
+                    🎉 Excellent! Your outreach draft is fully optimized for maximum deliverability.
+                  </div>
+                ) : (
+                  <div className="deliverability-issues-list">
+                    {spamAnalysis.issues.map((issue, idx) => (
+                      <div key={idx} className="deliverability-issue-item">
+                        <span className="deliverability-issue-icon">
+                          {issue.severity === 'error' ? '🔴' : issue.severity === 'warn' ? '🟡' : 'ℹ️'}
+                        </span>
+                        <div className="deliverability-issue-content">
+                          <span className="deliverability-issue-msg">
+                            {issue.msg} {issue.deduct > 0 && <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>(-{issue.deduct} pts)</span>}
+                          </span>
+                          {issue.fix && <span className="deliverability-issue-fix">💡 {issue.fix}</span>}
+                          
+                          {issue.type === 'spam-words' && spamAnalysis.foundSpamWords.length > 0 && (
+                            <div className="deliverability-pills-row">
+                              {spamAnalysis.foundSpamWords.map((word, wIdx) => (
+                                <span key={wIdx} className="deliverability-pill-spam">
+                                  {word}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Pre-flight checklist ── */}
       <div className="preflight-section">
