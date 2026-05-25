@@ -7,40 +7,50 @@ function isValidEmail(e) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e).trim());
 }
 
+const STAGE_LABELS = ['Stage 1', 'Stage 2', 'Stage 3', 'Stage 4'];
+
 export default function PreviewPanel({
   contacts,
   headers,
   colMap,
-  subject,
-  body,
+  stages,
   customTags,
   credStatus,
   sending,
   rowStatuses,
 }) {
-  const [device,       setDevice]       = useState('desktop');  // 'desktop' | 'mobile'
-  const [previewIndex, setPreviewIndex] = useState(0);
-  const [reportExpanded, setReportExpanded] = useState(false);
+  const [device,          setDevice]          = useState('desktop');  // 'desktop' | 'mobile'
+  const [previewIndex,    setPreviewIndex]    = useState(0);
+  const [previewStageIdx, setPreviewStageIdx] = useState(0);
+  const [reportExpanded,  setReportExpanded]  = useState(false);
 
-  const total = contacts.length;
-  const safeIdx = Math.max(0, Math.min(previewIndex, total - 1));
+  // Active stage for preview (defaults to 0 if OOB)
+  const safePreviewStage = Math.min(previewStageIdx, stages.length - 1);
+  const previewStage     = stages[safePreviewStage] || stages[0];
+
+  const total    = contacts.length;
+  const safeIdx  = Math.max(0, Math.min(previewIndex, total - 1));
   const previewRow = contacts[safeIdx] || {};
 
-  const previewSubject = compileTemplate(subject || '', previewRow, colMap, customTags);
-  const previewBody    = compileTemplate(body    || '', previewRow, colMap, customTags);
+  const previewSubject = compileTemplate(previewStage.subject || '', previewRow, colMap, customTags);
+  const previewBody    = compileTemplate(previewStage.body    || '', previewRow, colMap, customTags);
   const previewEmail   = colMap.email ? previewRow[colMap.email] : '';
 
-  // ── Pre-flight checks ────────────────────────────────────────────────────
+  // ── Pre-flight checks ─────────────────────────────────────────────────────
   const invalidEmails = contacts.filter(row => {
     const e = colMap.email ? row[colMap.email] : '';
     return e && !isValidEmail(e);
   });
 
-  const usedTags = [...(subject || '').matchAll(/<(\w+)>/g), ...(body || '').matchAll(/<(\w+)>/g)]
-    .map(m => m[1]);
+  const allSubjects = stages.map(s => s.subject || '');
+  const allBodies   = stages.map(s => s.body    || '');
+  const combinedText = allSubjects.join(' ') + ' ' + allBodies.join(' ');
+  const usedTags = [...combinedText.matchAll(/<(\w+)>/g)].map(m => m[1]);
   const unmappedCoreTags = ['name', 'company', 'role'].filter(tag =>
     usedTags.includes(tag) && !colMap[tag]
   );
+
+  const hasTemplate = stages.some(s => s.subject || s.body);
 
   const checks = [
     {
@@ -67,9 +77,9 @@ export default function PreviewPanel({
     {
       id: 'template',
       label: 'Template Set',
-      ok: !!(subject && body),
+      ok: hasTemplate,
       warn: false,
-      detail: (subject && body) ? 'Subject and body present' : 'Write a subject line and body',
+      detail: hasTemplate ? `${stages.length} stage${stages.length > 1 ? 's' : ''} configured` : 'Write a subject line and body',
     },
     ...(unmappedCoreTags.length > 0 ? [{
       id: 'tags',
@@ -87,7 +97,6 @@ export default function PreviewPanel({
     }] : []),
   ];
 
-  const allGood = checks.every(c => c.ok || c.warn);
   const blocking = checks.filter(c => !c.ok && !c.warn);
 
   return (
@@ -116,6 +125,21 @@ export default function PreviewPanel({
           )}
         </div>
       </div>
+
+      {/* ── Stage preview selector (only when multi-stage) ── */}
+      {stages.length > 1 && (
+        <div className="preview-stage-selector">
+          {stages.map((_, idx) => (
+            <button
+              key={idx}
+              className={`preview-stage-pill ${safePreviewStage === idx ? 'active' : ''}`}
+              onClick={() => setPreviewStageIdx(idx)}
+            >
+              {STAGE_LABELS[idx] || `Stage ${idx + 1}`}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Contact navigator ── */}
       {total > 0 && (
@@ -178,12 +202,15 @@ export default function PreviewPanel({
 
       {/* ── Deliverability Analysis & Score Card ── */}
       {(() => {
-        const spamAnalysis = analyzeTemplate(subject, body);
+        const spamAnalysis = analyzeTemplate(previewStage.subject, previewStage.body);
         return (
           <div className="deliverability-panel">
             <div className="deliverability-header" onClick={() => setReportExpanded(!reportExpanded)}>
               <div className="deliverability-title-group">
                 <span className="title">Deliverability Score</span>
+                {stages.length > 1 && (
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>({STAGE_LABELS[safePreviewStage]})</span>
+                )}
               </div>
               <div className="deliverability-badge-wrap">
                 <span className="deliverability-score-value">{spamAnalysis.score}/100</span>
@@ -193,9 +220,9 @@ export default function PreviewPanel({
                 <span className={`deliverability-toggle-icon ${reportExpanded ? 'expanded' : ''}`}>▼</span>
               </div>
             </div>
-            
+
             <div className="deliverability-bar-track">
-              <div 
+              <div
                 className={`deliverability-bar-fill grade-${spamAnalysis.grade.toLowerCase()}`}
                 style={{ width: `${spamAnalysis.score}%` }}
               />
@@ -219,13 +246,10 @@ export default function PreviewPanel({
                             {issue.msg} {issue.deduct > 0 && <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>(-{issue.deduct} pts)</span>}
                           </span>
                           {issue.fix && <span className="deliverability-issue-fix">💡 {issue.fix}</span>}
-                          
                           {issue.type === 'spam-words' && spamAnalysis.foundSpamWords.length > 0 && (
                             <div className="deliverability-pills-row">
                               {spamAnalysis.foundSpamWords.map((word, wIdx) => (
-                                <span key={wIdx} className="deliverability-pill-spam">
-                                  {word}
-                                </span>
+                                <span key={wIdx} className="deliverability-pill-spam">{word}</span>
                               ))}
                             </div>
                           )}
