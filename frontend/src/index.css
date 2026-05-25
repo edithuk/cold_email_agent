@@ -1953,3 +1953,170 @@ input[type="range"]::-webkit-slider-thumb:hover {
   color: var(--text-muted);
   margin-top: 1px;
 }
+
+/* ============================================================
+   Deliverability Score & Spam Scanner Upgrades
+   ============================================================ */
+.deliverability-panel {
+  background: var(--bg-inset);
+  border: 1.5px solid var(--border-default);
+  border-radius: var(--radius-md);
+  margin-top: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.deliverability-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(var(--accent), 0.02);
+  transition: background 0.2s ease;
+}
+
+.deliverability-header:hover {
+  background: var(--bg-card-hover);
+}
+
+.deliverability-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deliverability-title-group .title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+/* Score and Grade Badges */
+.deliverability-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deliverability-score-value {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.deliverability-grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: 11px;
+  color: #fff !important;
+}
+
+/* Grade Color Maps */
+.grade-a { background: var(--green); box-shadow: 0 0 8px rgba(76, 175, 121, 0.3); }
+.grade-b { background: #4cafe7; box-shadow: 0 0 8px rgba(76, 175, 231, 0.3); }
+.grade-c { background: var(--yellow); box-shadow: 0 0 8px rgba(212, 168, 58, 0.3); }
+.grade-d { background: #d4823a; box-shadow: 0 0 8px rgba(212, 130, 58, 0.3); }
+.grade-f { background: var(--red); box-shadow: 0 0 8px rgba(212, 66, 66, 0.3); }
+
+/* Horizontal progress meter bar */
+.deliverability-bar-track {
+  height: 4px;
+  background: var(--border-default);
+  position: relative;
+  overflow: hidden;
+}
+
+.deliverability-bar-fill {
+  height: 100%;
+  transition: width 0.4s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+/* Collapsible Content */
+.deliverability-report {
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px 12px;
+  animation: slideDown 0.25s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.deliverability-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.deliverability-issue-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.deliverability-issue-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.deliverability-issue-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.deliverability-issue-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deliverability-issue-msg {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deliverability-issue-fix {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.deliverability-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.deliverability-pill-spam {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid rgba(212, 66, 66, 0.25);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.deliverability-toggle-icon {
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform 0.2s ease;
+}
+
+.deliverability-toggle-icon.expanded {
+  transform: rotate(180deg);
+}
