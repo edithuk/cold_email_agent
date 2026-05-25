@@ -5,7 +5,7 @@ import {
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 
-export default function TemplateSidebar({ open, onClose, subject, body, customTags, onLoad }) {
+export default function TemplateSidebar({ open, onClose, stages, customTags, onLoad }) {
   const { user } = useAuth();
   const [templates,     setTemplates]     = useState([]);
   const [loading,       setLoading]       = useState(false);
@@ -46,18 +46,22 @@ export default function TemplateSidebar({ open, onClose, subject, body, customTa
 
   // ── Save current template ─────────────────────────────────────────────────
   async function saveTemplate() {
-    const name = saveName.trim();
-    if (!name) { showStatus('error', 'Please enter a template name.'); return; }
-    if (!user)  { showStatus('error', 'You must be signed in to save templates.'); return; }
-    if (!subject && !body) { showStatus('error', 'Nothing to save — write a subject or body first.'); return; }
+    const name       = saveName.trim();
+    const hasContent = stages && stages.some(s => s.subject || s.body);
+    if (!name)       { showStatus('error', 'Please enter a template name.'); return; }
+    if (!user)       { showStatus('error', 'You must be signed in to save templates.'); return; }
+    if (!hasContent) { showStatus('error', 'Nothing to save — write a subject or body first.'); return; }
 
     setSaving(true);
     try {
       await addDoc(collection(db, 'users', user.uid, 'templates'), {
         name,
-        subject:    subject  || '',
-        body:       body     || '',
+        stages:     stages || [],
+        // Legacy compat: store first stage subject/body at root level too
+        subject:    stages?.[0]?.subject || '',
+        body:       stages?.[0]?.body    || '',
         customTags: customTags || [],
+        stageCount: stages?.length || 1,
         isPublic:   saveIsPublic,
         updatedAt:  serverTimestamp(),
       });
@@ -220,9 +224,16 @@ export default function TemplateSidebar({ open, onClose, subject, body, customTa
               <div className="sidebar-card-body">
                 <div className="sidebar-card-name-row">
                   <div className="sidebar-card-name">{tmpl.name}</div>
-                  <span className={`sidebar-visibility-badge ${tmpl.isPublic ? 'public' : 'private'}`}>
-                    {tmpl.isPublic ? '🌍' : '🔒'}
-                  </span>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {(tmpl.stageCount || (tmpl.stages?.length) || 0) > 1 && (
+                      <span className="sidebar-stage-badge">
+                        ⚡ {tmpl.stageCount || tmpl.stages?.length} Stages
+                      </span>
+                    )}
+                    <span className={`sidebar-visibility-badge ${tmpl.isPublic ? 'public' : 'private'}`}>
+                      {tmpl.isPublic ? '🌍' : '🔒'}
+                    </span>
+                  </div>
                 </div>
                 <div className="sidebar-card-subject">{tmpl.subject || '(no subject)'}</div>
                 <div className="sidebar-card-meta">

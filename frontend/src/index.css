@@ -197,10 +197,10 @@
   height: 100%;
 }
 
-/* ── Right column flex container ── */
+/* ── Right column — 3-row viewport-locked grid ── */
 .panel-right-col {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 2.2fr 1.6fr 1.2fr;
   height: 100%;
   overflow: hidden;
   background: var(--bg-base);
@@ -209,27 +209,39 @@
 /* ── Right panels ── */
 .panel {
   background: var(--bg-surface);
-  padding: 20px 24px;
+  padding: 18px 24px;
+  min-height: 0;   /* critical: lets grid rows shrink below content size */
+  overflow: hidden;
 }
 
+/* Row 1 — Template Editor: flex-column so Quill fills remaining height */
 .panel-right-top {
-  flex-shrink: 0;
-  overflow-y: auto;
-  max-height: 360px;
+  display: flex;
+  flex-direction: column;
   border-bottom: 1px solid var(--border-default);
+  overflow: hidden;
 }
 
+/* Row 2 — Send Controls + Preview */
 .panel-right-middle {
-  flex-shrink: 0;
-  min-height: 260px;
+  display: flex;
+  flex-direction: column;
   border-bottom: 1px solid var(--border-default);
+  overflow: hidden;
 }
 
-.panel-right-bottom {
-  flex: 1;
-  min-height: 0;
+/* Each half-column inside the middle row scrolls independently */
+.panel-right-middle > div > div {
   overflow-y: auto;
+  overflow-x: hidden;
 }
+
+/* Row 3 — Activity Log | Scheduled Jobs | Contacts */
+.panel-right-bottom {
+  display: grid;   /* set to grid in JS — this just ensures no flex fights */
+  overflow: hidden;
+}
+
 
 /* ── Section header ── */
 .section-header {
@@ -644,7 +656,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11.5px;
   line-height: 1.8;
-  height: 200px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -689,8 +702,11 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* ── Contacts table ── */
 .contacts-table-wrap {
   overflow-x: auto;
+  overflow-y: auto;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  flex: 1;
+  min-height: 0;
 }
 
 .contacts-table {
@@ -958,12 +974,32 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .quill-wrap .ql-editor {
-  min-height: 150px;
-  max-height: 230px;
+  /* Height now grows to fill the grid row — no fixed max-height */
+  min-height: 80px;
   overflow-y: auto;
   color: var(--text-primary);
   line-height: 1.7;
   padding: 12px 14px;
+}
+
+/* Make .quill-wrap itself fill remaining height in its flex parent */
+.panel-right-top .quill-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-right-top .quill-wrap .ql-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-right-top .quill-wrap .ql-editor {
+  flex: 1;
+  max-height: unset;
 }
 
 .quill-wrap .ql-editor.ql-blank::before {
@@ -2119,4 +2155,582 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .deliverability-toggle-icon.expanded {
   transform: rotate(180deg);
+}
+
+/* ============================================================
+   Multi-Stage Sequence Timeline
+   ============================================================ */
+.sequence-timeline {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  margin: 10px 0 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.timeline-step {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Connecting arrow + delay badge between steps */
+.timeline-arrow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px;
+}
+
+.timeline-arrow-line {
+  display: block;
+  width: 16px;
+  height: 1px;
+  background: var(--border-default);
+}
+
+.timeline-delay-badge {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* Stage tab */
+.timeline-tab-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.timeline-stage-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-default);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.timeline-stage-tab:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.timeline-stage-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.timeline-tab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: currentColor;
+  color: var(--bg-base);
+  font-size: 9px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.timeline-tab-label {
+  color: inherit;
+}
+
+/* Remove follow-up button */
+.timeline-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: 2px;
+  border-radius: 50%;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.timeline-remove-btn:hover {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+/* Add follow-up button */
+.timeline-add-btn {
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.timeline-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ── Follow-up delay configurator ── */
+.sequence-delay-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  margin-top: 8px;
+}
+
+.sequence-delay-icon { font-size: 13px; }
+
+.sequence-delay-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex: 1;
+}
+
+.sequence-delay-input {
+  width: 48px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.sequence-delay-input::-webkit-outer-spin-button,
+.sequence-delay-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.sequence-delay-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Campaign mode selector ── */
+.campaign-mode-selector,
+.selective-stage-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.campaign-mode-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.campaign-mode-btn {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-default);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.campaign-mode-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.campaign-mode-btn:hover:not(.active) {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+/* ── Drip sequence summary strip ── */
+.drip-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  font-size: 10px;
+}
+
+.drip-summary-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.drip-summary-stage {
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.drip-summary-arrow {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+}
+
+/* ── Preview stage selector pills ── */
+.preview-stage-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.preview-stage-pill {
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.preview-stage-pill.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.preview-stage-pill:hover:not(.active) {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+/* ── Sidebar stage count badge ── */
+.sidebar-stage-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Scheduled Jobs Panel
+   ============================================================ */
+.scheduled-jobs-panel {
+  min-width: 0;
+}
+
+/* Filter tab row */
+.jobs-filter-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+}
+
+.jobs-filter-btn {
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.jobs-filter-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.jobs-filter-btn:hover:not(.active) {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+/* Loading / empty states */
+.jobs-loading,
+.jobs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.jobs-loading { flex-direction: row; justify-content: center; }
+
+/* Jobs list */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* Job card */
+.job-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  transition: border-color 0.15s;
+}
+.job-card:hover { border-color: var(--border-default); }
+
+.job-card-pending { border-left: 2px solid var(--accent); }
+.job-card-sending { border-left: 2px solid var(--yellow); }
+.job-card-sent    { border-left: 2px solid var(--green); }
+.job-card-failed  { border-left: 2px solid var(--red); }
+
+.job-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.job-status-dot-wrap {
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+
+.job-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-pending { background: var(--accent); opacity: 0.8; }
+.dot-sent    { background: var(--green); }
+.dot-failed  { background: var(--red); }
+
+.job-card-main { flex: 1; min-width: 0; }
+
+.job-card-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.job-stage-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.job-email {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-name {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.job-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+
+.job-meta-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.job-send-time { color: var(--text-secondary); font-weight: 500; }
+.job-time-until {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+}
+.job-error {
+  color: var(--red);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.job-subject-preview {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cancel button */
+.job-cancel-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-default);
+  background: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.15s;
+}
+.job-cancel-btn:hover {
+  background: var(--red-soft);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* Drip real-time badge in SendControls */
+.drip-real-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--green);
+  background: var(--green-soft);
+  border: 1px solid var(--green);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* ── Follow-up scheduling: mode toggle & datetime input ── */
+.sequence-delay-block {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.delay-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.delay-mode-btn {
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.delay-mode-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.delay-mode-btn:hover:not(.active) {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+/* datetime-local input */
+.sequence-datetime-input {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  min-width: 0;
+  color-scheme: dark;  /* so native date picker respects dark theme */
+}
+.sequence-datetime-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }

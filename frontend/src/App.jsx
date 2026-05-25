@@ -5,11 +5,28 @@ import Header from './components/layout/Header';
 import CredentialsPanel from './components/panels/CredentialsPanel';
 import ContactsPanel from './components/panels/ContactsPanel';
 import ResumePanel from './components/panels/ResumePanel';
+import ScheduledJobsPanel from './components/panels/ScheduledJobsPanel';
 import TemplateEditor from './components/editor/TemplateEditor';
 import TemplateSidebar from './components/editor/TemplateSidebar';
 import PreviewPanel from './components/preview/PreviewPanel';
 import SendControls from './components/controls/SendControls';
 import { formatTime } from './utils/template';
+
+// ── Default blank stage factory ───────────────────────────────────────────
+export function makeStage(overrides = {}) {
+  return {
+    id:        Date.now() + Math.random(),
+    subject:   '',
+    body:      '',
+    // Scheduling (follow-up stages only)
+    delayMode: 'relative',   // 'relative' | 'absolute'
+    delayDays:  3,           // relative: days from Stage 1 send time
+    delayHours: 0,           // relative: additional hours
+    sendAt:     '',          // absolute: ISO datetime-local string
+    ...overrides,
+  };
+}
+
 
 // ── Loading splash ────────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -64,10 +81,15 @@ export default function App() {
   // ── Resume ────────────────────────────────────────────────────────────────
   const [resume, setResume] = useState(null);
 
-  // ── Template ──────────────────────────────────────────────────────────────
-  const [subject,    setSubject]    = useState('');
-  const [body,       setBody]       = useState('');
-  const [customTags, setCustomTags] = useState([]);
+  // ── Multi-stage sequences ─────────────────────────────────────────────────
+  const [stages,          setStages]          = useState([makeStage({ delayDays: 0 })]);
+  const [activeStageIdx,  setActiveStageIdx]  = useState(0);
+  const [customTags,      setCustomTags]      = useState([]);
+
+  // Convenience getters for active stage (used by legacy props)
+  const activeStage   = stages[activeStageIdx] || stages[0];
+  const activeSubject = activeStage.subject;
+  const activeBody    = activeStage.body;
 
   // ── Sidebar ───────────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -89,6 +111,11 @@ export default function App() {
   if (loading)  return <LoadingScreen />;
   if (!user)    return <LoginPage />;
 
+  // ── Helpers: update active stage field ───────────────────────────────────
+  function updateActiveStage(field, value) {
+    setStages(prev => prev.map((s, i) => i === activeStageIdx ? { ...s, [field]: value } : s));
+  }
+
   // ── Contact file loaded ───────────────────────────────────────────────────
   function handleContactsLoaded({ contacts: c, headers: h, colMap: m, contactFileName: f }) {
     setContacts(c);
@@ -101,22 +128,27 @@ export default function App() {
 
   // ── Template loaded from sidebar ──────────────────────────────────────────
   function handleTemplateLoad(tmpl) {
-    setSubject(tmpl.subject || '');
-    setBody(tmpl.body || '');
+    // Support new multi-stage format AND backward-compat single-stage vault entries
+    if (tmpl.stages && Array.isArray(tmpl.stages) && tmpl.stages.length > 0) {
+      setStages(tmpl.stages);
+    } else {
+      setStages([makeStage({ subject: tmpl.subject || '', body: tmpl.body || '', delayDays: 0 })]);
+    }
+    setActiveStageIdx(0);
     setCustomTags(tmpl.customTags || []);
-    addLog(`Template "${tmpl.name}" loaded.`, 'system');
+    addLog(`Template "${tmpl.name}" loaded (${tmpl.stages?.length || 1} stage${(tmpl.stages?.length || 1) > 1 ? 's' : ''}).`, 'system');
   }
 
   // ── New campaign – clears everything except Gmail credentials ─────────────
   function newCampaign() {
-    if (sending) return; // don't allow mid-send
+    if (sending) return;
     setContacts([]);
     setHeaders([]);
     setColMap({ name: '', email: '', company: '', role: '' });
     setContactFileName('');
     setResume(null);
-    setSubject('');
-    setBody('');
+    setStages([makeStage({ delayDays: 0 })]);
+    setActiveStageIdx(0);
     setCustomTags([]);
     setRowStatuses([]);
     setCurrentIdx(0);
@@ -166,12 +198,12 @@ export default function App() {
         {/* ══ RIGHT COLUMN ══ */}
         <div className="panel-right-col">
 
-          {/* Template Editor */}
+          {/* Template Editor (multi-stage) */}
           <TemplateEditor
-            subject={subject}
-            body={body}
-            onSubjectChange={setSubject}
-            onBodyChange={setBody}
+            stages={stages}
+            activeStageIdx={activeStageIdx}
+            onActiveStageIdxChange={setActiveStageIdx}
+            onStagesChange={setStages}
             headers={headers}
             colMap={colMap}
             customTags={customTags}
@@ -179,16 +211,15 @@ export default function App() {
             onOpenSidebar={() => setSidebarOpen(true)}
           />
 
-          {/* Middle row: Controls + Preview */}
+          {/* Middle row: Controls + Preview (fills row 2 of the grid) */}
           <div className="panel panel-right-middle">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, height: '100%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, height: '100%', overflow: 'hidden' }}>
               <SendControls
                 email={credState.email}
                 appPassword={credState.appPassword}
                 contacts={contacts}
                 colMap={colMap}
-                subject={subject}
-                body={body}
+                stages={stages}
                 resume={resume}
                 customTags={customTags}
                 sending={sending}   setSending={setSending}
@@ -203,8 +234,7 @@ export default function App() {
                 contacts={contacts}
                 headers={headers}
                 colMap={colMap}
-                subject={subject}
-                body={body}
+                stages={stages}
                 customTags={customTags}
                 credStatus={credState.credStatus}
                 sending={sending}
@@ -213,11 +243,11 @@ export default function App() {
             </div>
           </div>
 
-          {/* ── Bottom row: Activity Log (left) + Contacts table (right) ── */}
-          <div className="panel panel-right-bottom" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {/* ── Bottom row: 3-column — Activity Log | Scheduled Jobs | Contacts ── */}
+          <div className="panel panel-right-bottom" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 0 }}>
 
             {/* Activity Log */}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 18px', borderRight: '1px solid var(--border-subtle)' }}>
               <div className="section-header">
                 <span className="section-title">Activity Log</span>
                 {logs.length > 0 && (
@@ -227,8 +257,13 @@ export default function App() {
               <ActivityLog logs={logs} />
             </div>
 
+            {/* Scheduled Follow-ups */}
+            <div style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 18px', borderRight: '1px solid var(--border-subtle)' }}>
+              <ScheduledJobsPanel />
+            </div>
+
             {/* Contacts table */}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '14px 18px' }}>
               <div className="section-header">
                 <span className="section-title">Contacts</span>
               </div>
@@ -237,7 +272,7 @@ export default function App() {
                   No contacts loaded yet.
                 </div>
               ) : (
-                <div className="contacts-table-wrap" style={{ maxHeight: 200 }}>
+                <div className="contacts-table-wrap" style={{ flex: 1, minHeight: 0 }}>
                   <table className="contacts-table">
                     <thead>
                       <tr>
@@ -278,8 +313,7 @@ export default function App() {
       <TemplateSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        subject={subject}
-        body={body}
+        stages={stages}
         customTags={customTags}
         onLoad={handleTemplateLoad}
       />
