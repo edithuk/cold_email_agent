@@ -1,53 +1,40 @@
-import { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import UserMenu from '../auth/UserMenu';
 
-export default function Header({ credStatus, email: connectedEmail, onNewCampaign, isSending }) {
+export default function Header({ credStatus, email: connectedEmail, onNewCampaign, isSending, view, onBackToDashboard }) {
   const { theme, toggleTheme } = useTheme();
-  const [confirming, setConfirming] = useState(false);
-
-  function handleNewCampaign() {
-    if (confirming) {
-      onNewCampaign();
-      setConfirming(false);
-    } else {
-      setConfirming(true);
-      // Auto-cancel after 3s if user doesn't confirm
-      setTimeout(() => setConfirming(false), 3000);
-    }
-  }
 
   return (
     <header className="header">
       {/* Brand */}
       <div className="header-brand">
         <div className="header-dot" />
-        <span className="header-title">Cold Email Agent</span>
-        <span className="header-subtitle">/ Recruiter Outreach</span>
+        <span className="header-title" style={{ cursor: view === 'wizard' ? 'pointer' : 'default' }} onClick={view === 'wizard' && !isSending ? onBackToDashboard : undefined}>
+          Cold Email Agent
+        </span>
+        {view === 'dashboard' && (
+          <span className="header-subtitle">/ Campaigns</span>
+        )}
+        {view === 'wizard' && (
+          <span className="header-subtitle" style={{ cursor: 'pointer' }} onClick={!isSending ? onBackToDashboard : undefined}>
+            / <span style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>Campaigns</span> / New Campaign
+          </span>
+        )}
       </div>
 
       {/* Right side controls */}
       <div className="header-right">
         {/* SMTP Connection status */}
-        <div className="header-status">
-          <div className={`status-dot ${credStatus === 'ok' ? 'connected' : credStatus === 'error' ? 'error' : ''}`} />
-          <span>
-            {credStatus === 'ok'        ? `Connected · ${connectedEmail}` :
-             credStatus === 'error'     ? 'Auth failed' :
-             credStatus === 'verifying' ? 'Verifying…' : 'Not connected'}
-          </span>
-        </div>
-
-        {/* New Campaign button */}
-        <button
-          id="new-campaign-btn"
-          className={`btn btn-sm new-campaign-btn ${confirming ? 'confirming' : ''}`}
-          onClick={handleNewCampaign}
-          disabled={isSending}
-          title={isSending ? 'Cannot reset while sending is in progress' : 'Clear template, contacts & resume — keep Gmail credentials'}
-        >
-          {confirming ? '⚠ Confirm clear?' : '＋ New Campaign'}
-        </button>
+        {credStatus && (
+          <div className="header-status">
+            <div className={`status-dot ${credStatus === 'ok' ? 'connected' : credStatus === 'error' ? 'error' : ''}`} />
+            <span>
+              {credStatus === 'ok'        ? `Connected · ${connectedEmail}` :
+               credStatus === 'error'     ? 'Auth failed' :
+               credStatus === 'verifying' ? 'Verifying…' : 'Not connected'}
+            </span>
+          </div>
+        )}
 
         {/* Theme Toggle */}
         <button

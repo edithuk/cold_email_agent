@@ -25,6 +25,9 @@ export default function SendControls({
   currentIdx,  setCurrentIdx,
   setLogs,
   addLog,
+  onLaunch,
+  hideSendButton,
+  onSendComplete,
 }) {
   const { user }  = useAuth();
   const pausedRef = useRef(false);
@@ -195,6 +198,7 @@ export default function SendControls({
         await sleep(delay * 1000);
       }
     }
+    return statuses;
   }
 
   // ── SELECTIVE mode: send one specific stage now ───────────────────────────
@@ -241,6 +245,7 @@ export default function SendControls({
         await sleep(delay * 1000);
       }
     }
+    return statuses;
   }
 
   // ── Entry point ───────────────────────────────────────────────────────────
@@ -254,6 +259,7 @@ export default function SendControls({
     pausedRef.current = false;
     setPaused(false);
     setSending(true);
+    if (onLaunch) onLaunch();
 
     const modeLabel = campaignMode === 'drip'
       ? `Drip (Stage 1 now + ${stages.length - 1} follow-up${stages.length > 2 ? 's' : ''} scheduled)`
@@ -261,17 +267,16 @@ export default function SendControls({
 
     addLog(`Starting — ${contacts.length} contacts · ${modeLabel} · ${delay}s delay between contacts.`, 'system');
 
-    if (campaignMode === 'drip') {
-      await runDripLoop();
-    } else {
-      await runSelectiveLoop(selectedStage);
-    }
+    const finalStatuses = campaignMode === 'drip'
+      ? await runDripLoop()
+      : await runSelectiveLoop(selectedStage);
 
     setSending(false);
     if (!stopRef.current) {
-      const s = rowStatuses.filter(x => x === 'success').length;
-      const f = rowStatuses.filter(x => x === 'error').length;
+      const s = (finalStatuses || []).filter(x => x === 'success').length;
+      const f = (finalStatuses || []).filter(x => x === 'error').length;
       addLog(`Done! ${s} sent, ${f} failed.`, 'system');
+      if (onSendComplete) onSendComplete({ sent: s, failed: f });
     }
   }
 
@@ -421,7 +426,7 @@ export default function SendControls({
 
       {/* Action buttons */}
       <div className="controls-row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
-        {!sending ? (
+        {!sending && !hideSendButton ? (
           <button
             id="send-btn"
             className="btn btn-primary"
@@ -430,7 +435,7 @@ export default function SendControls({
           >
             ▶ Send Emails
           </button>
-        ) : (
+        ) : sending ? (
           <>
             <button id="pause-btn" className="btn btn-secondary" onClick={togglePause}>
               {paused ? '▶ Resume' : '⏸ Pause'}
@@ -439,7 +444,7 @@ export default function SendControls({
               ⏹ Stop
             </button>
           </>
-        )}
+        ) : null}
 
         {!sending && (success > 0 || failed > 0) && (
           <button id="reset-btn" className="btn btn-secondary" onClick={resetAll}>↺ Reset</button>
@@ -451,6 +456,14 @@ export default function SendControls({
           </button>
         )}
       </div>
+
+      {/* Hidden trigger — lets the wizard nav bar fire startSending remotely */}
+      <button
+        id="send-controls-trigger"
+        style={{ display: 'none' }}
+        onClick={startSending}
+        aria-hidden="true"
+      />
     </div>
   );
 }

@@ -110,9 +110,18 @@
 
 /* ── App shell ── */
 .app {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Main content area (below header) ── */
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg-base);
 }
 
 /* ── Header ── */
@@ -180,12 +189,12 @@
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 0;
-  height: calc(100vh - 52px);
+  min-height: 0;             /* let flex child shrink */
   overflow: hidden;
   border-top: 1px solid var(--border-subtle);
 }
 
-/* ── Left panel ── */
+/* ── Left panel — pinned, never scrolls away ── */
 .panel-left {
   background: var(--bg-surface);
   border-right: 1px solid var(--border-default);
@@ -194,27 +203,25 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  height: 100%;
 }
 
-/* ── Right column — 3-row viewport-locked grid ── */
+/* ── Right column — viewport-locked 3-row grid ── */
 .panel-right-col {
   display: grid;
   grid-template-rows: 2.2fr 1.6fr 1.2fr;
-  height: 100%;
-  overflow: hidden;
+  overflow: hidden;            /* rows CANNOT grow beyond their fr share */
   background: var(--bg-base);
 }
 
-/* ── Right panels ── */
+/* ── Right panels (shared base) ── */
 .panel {
   background: var(--bg-surface);
   padding: 18px 24px;
-  min-height: 0;   /* critical: lets grid rows shrink below content size */
-  overflow: hidden;
+  min-height: 0;               /* critical: lets grid rows shrink */
+  overflow: hidden;            /* content scrolls inside, not the panel */
 }
 
-/* Row 1 — Template Editor: flex-column so Quill fills remaining height */
+/* Row 1 — Template Editor */
 .panel-right-top {
   display: flex;
   flex-direction: column;
@@ -236,10 +243,78 @@
   overflow-x: hidden;
 }
 
-/* Row 3 — Activity Log | Scheduled Jobs | Contacts */
+/* Row 3 — Tabbed bottom panel */
 .panel-right-bottom {
-  display: grid;   /* set to grid in JS — this just ensures no flex fights */
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Tab bar ── */
+.bottom-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  min-height: 34px;
+}
+
+.bottom-tab {
+  padding: 7px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bottom-tab:hover {
+  color: var(--text-primary);
+}
+
+.bottom-tab.active {
+  color: var(--text-primary);
+}
+
+.bottom-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}
+
+.bottom-tab-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  line-height: 1.4;
+}
+
+/* ── Tab content area ── */
+.bottom-tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 18px;
 }
 
 
@@ -709,6 +784,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
   min-height: 0;
 }
 
+/* Compact table preview inside setup card (fixed max height) */
+.contacts-preview-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 180px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
 .contacts-table {
   width: 100%;
   border-collapse: collapse;
@@ -983,23 +1068,27 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 /* Make .quill-wrap itself fill remaining height in its flex parent */
-.panel-right-top .quill-wrap {
+.panel-right-top .quill-wrap,
+.template-editor-inner .quill-wrap {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.panel-right-top .quill-wrap .ql-container {
+.panel-right-top .quill-wrap .ql-container,
+.template-editor-inner .quill-wrap .ql-container {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.panel-right-top .quill-wrap .ql-editor {
+.panel-right-top .quill-wrap .ql-editor,
+.template-editor-inner .quill-wrap .ql-editor {
   flex: 1;
   max-height: unset;
+  min-height: 240px;   /* generous editor height in wizard card */
 }
 
 .quill-wrap .ql-editor.ql-blank::before {
@@ -2733,4 +2822,436 @@ input[type="range"]::-webkit-slider-thumb:hover {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+
+/* ================================================================
+   DASHBOARD
+   ================================================================ */
+
+.dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.dashboard-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dashboard-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Stats bar */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stat-value.green { color: var(--green); }
+.stat-value.red { color: var(--red); }
+.stat-value.accent { color: var(--accent); }
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+/* Campaign grid */
+.campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.campaign-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.campaign-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.campaign-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.campaign-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.campaign-card-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.campaign-card-stats {
+  display: flex;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.campaign-stat {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.campaign-stat strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.campaign-status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.campaign-status-badge.completed {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.campaign-status-badge.sending {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.campaign-status-badge.draft {
+  background: var(--yellow-soft);
+  color: var(--yellow);
+}
+
+.campaign-status-badge.paused {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+/* Empty state */
+.dashboard-empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+
+.dashboard-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.dashboard-empty h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.dashboard-empty p {
+  font-size: 13px;
+  max-width: 360px;
+  margin: 0 auto 24px;
+  line-height: 1.6;
+}
+
+/* ================================================================
+   WIZARD
+   ================================================================ */
+
+.wizard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Stepper */
+.wizard-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 20px 32px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.wizard-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  cursor: default;
+}
+
+.wizard-step-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wizard-step-item.done {
+  color: var(--green);
+}
+
+.wizard-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-default);
+}
+
+.wizard-step-item.active .wizard-step-num {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.wizard-step-item.done .wizard-step-num {
+  background: var(--green);
+  color: white;
+  border-color: var(--green);
+}
+
+.wizard-step-connector {
+  width: 40px;
+  height: 1px;
+  background: var(--border-default);
+  margin: 0 4px;
+}
+
+.wizard-step-connector.done {
+  background: var(--green);
+}
+
+/* Step content */
+.wizard-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px;
+}
+
+.wizard-content-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Step navigation */
+.wizard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 32px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.wizard-nav-group {
+  display: flex;
+  gap: 10px;
+}
+
+/* ── Setup step ── */
+.setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.setup-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 24px;
+}
+
+.setup-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-card.full-width {
+  grid-column: 1 / -1;
+}
+
+/* Campaign name input */
+.campaign-name-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.campaign-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.campaign-name-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── Compose step ── */
+.compose-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  min-height: 600px;
+}
+
+.compose-editor-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.compose-preview-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Review step ── */
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.review-summary {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 24px;
+}
+
+.review-summary h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+
+.review-row:last-child { border-bottom: none; }
+
+.review-label {
+  color: var(--text-muted);
+}
+
+.review-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Monitor step ── */
+.monitor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.monitor-full {
+  grid-column: 1 / -1;
+}
+
+.monitor-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.monitor-panel .console {
+  height: 300px;
+  flex: unset;
+}
+
+.monitor-panel .contacts-table-wrap {
+  max-height: 350px;
+  flex: unset;
 }

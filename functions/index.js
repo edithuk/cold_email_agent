@@ -161,9 +161,9 @@ exports.dispatchScheduledFollowUps = onSchedule(
       let senderPassword = null;
 
       try {
-        const credDoc = await db.doc(`users/${userId}/private/smtp`).get();
+        const credDoc = await db.doc(`users/${userId}/profile/smtp`).get();
         if (!credDoc.exists) {
-          console.warn(`[scheduler] No SMTP creds doc for user ${userId}. Skipping ${jobs.length} job(s).`);
+          console.warn(`[scheduler] No SMTP creds doc for user ${userId} at profile/smtp. Skipping ${jobs.length} job(s).`);
           for (const job of jobs) {
             await job.ref.update({ status: 'failed', error: 'SMTP credentials not found', updatedAt: FieldValue.serverTimestamp() });
           }
