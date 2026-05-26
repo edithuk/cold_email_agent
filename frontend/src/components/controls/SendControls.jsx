@@ -28,10 +28,18 @@ export default function SendControls({
   onLaunch,
   hideSendButton,
   onSendComplete,
+  // Optional: external refs from App.jsx for shared pause/stop state
+  pausedRef: externalPausedRef,
+  stopRef:   externalStopRef,
+  // Optional: external handlers for monitor-level controls
+  onTogglePause: externalTogglePause,
+  onStop:        externalStop,
 }) {
   const { user }  = useAuth();
-  const pausedRef = useRef(false);
-  const stopRef   = useRef(false);
+  const internalPausedRef = useRef(false);
+  const internalStopRef   = useRef(false);
+  const pausedRef = externalPausedRef || internalPausedRef;
+  const stopRef   = externalStopRef   || internalStopRef;
 
   // Campaign mode: 'drip' | 'selective'
   const [campaignMode,  setCampaignMode]  = useState('drip');
@@ -281,12 +289,14 @@ export default function SendControls({
   }
 
   function togglePause() {
+    if (externalTogglePause) { externalTogglePause(); return; }
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
     addLog(pausedRef.current ? 'Paused.' : 'Resumed.', 'warn');
   }
 
   function stopSending() {
+    if (externalStop) { externalStop(); return; }
     stopRef.current   = true;
     pausedRef.current = false;
     setPaused(false);

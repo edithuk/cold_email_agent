@@ -23,6 +23,10 @@ export default function StepReview({
   addLog,
   onLaunch,
   onSendComplete,
+  pausedRef,
+  stopRef,
+  onTogglePause,
+  onStop,
 }) {
   const stageCount = stages.filter(s => s.subject && s.body).length;
   const hasFollowUps = stageCount > 1;
@@ -114,6 +118,10 @@ export default function StepReview({
           onLaunch={onLaunch}
           onSendComplete={onSendComplete}
           hideSendButton
+          pausedRef={pausedRef}
+          stopRef={stopRef}
+          onTogglePause={onTogglePause}
+          onStop={onStop}
         />
       </div>
     </div>

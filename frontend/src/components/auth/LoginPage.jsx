@@ -56,8 +56,8 @@ export default function LoginPage() {
             <span className="auth-logo-dot" />
             <span className="auth-logo-dot auth-logo-dot-2" />
           </div>
-          <h1 className="auth-title">Cold Email Agent</h1>
-          <p className="auth-subtitle">Your personalized recruiter outreach assistant</p>
+          <h1 className="auth-title">DripFlow</h1>
+          <p className="auth-subtitle">Your personalized outreach assistant</p>
         </div>
 
         {/* Tabs */}

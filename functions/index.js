@@ -10,10 +10,13 @@
  */
 
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
+const { onRequest }         = require('firebase-functions/v2/https');
 const { defineSecret }      = require('firebase-functions/params');
 const { initializeApp }     = require('firebase-admin/app');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 const nodemailer            = require('nodemailer');
+const express               = require('express');
+const cors                  = require('cors');
 const { subtle }            = require('crypto').webcrypto;   // Node 20 has Web Crypto built-in
 
 initializeApp();
@@ -255,3 +258,103 @@ exports.dispatchScheduledFollowUps = onSchedule(
     console.log('[scheduler] Run complete.');
   }
 );
+
+// ── Express App mounted as Cloud Function ────────────────────────────────
+const app = express();
+app.use(cors({ origin: true }));
+app.use(express.json({ limit: '25mb' }));
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.post('/api/validate-credentials', async (req, res) => {
+  const { senderEmail, senderPassword } = req.body;
+
+  if (!senderEmail || !senderPassword) {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: senderEmail,
+        pass: senderPassword,
+      },
+    });
+
+    await transporter.verify();
+    res.json({ success: true, message: 'Gmail credentials verified successfully.' });
+  } catch (err) {
+    console.error('SMTP verify error:', err.message);
+    res.status(401).json({
+      success: false,
+      error: `Authentication failed: ${err.message}. Make sure you are using an App Password, not your regular Gmail password.`,
+    });
+  }
+});
+
+app.post('/api/send-email', async (req, res) => {
+  const {
+    senderEmail,
+    senderPassword,
+    recipientEmail,
+    recipientName,
+    subject,
+    body,
+    attachment,
+  } = req.body;
+
+  if (!senderEmail || !senderPassword || !recipientEmail || !subject || !body) {
+    return res.status(400).json({ success: false, error: 'Missing required fields.' });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: senderEmail,
+        pass: senderPassword,
+      },
+    });
+
+    const mailOptions = {
+      from: `"${senderEmail.split('@')[0]}" <${senderEmail}>`,
+      to: recipientEmail,
+      subject: subject,
+      html: body,
+      text: body.replace(/<[^>]*>/g, ''),
+    };
+
+    if (attachment && attachment.content && attachment.filename) {
+      mailOptions.attachments = [
+        {
+          filename: attachment.filename,
+          content: Buffer.from(attachment.content, 'base64'),
+          contentType: attachment.contentType || 'application/octet-stream',
+        },
+      ];
+    }
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent to ${recipientEmail} [${info.messageId}]`);
+
+    res.json({
+      success: true,
+      messageId: info.messageId,
+      recipient: recipientEmail,
+      name: recipientName,
+    });
+  } catch (err) {
+    console.error(`❌ Failed to send to ${recipientEmail}:`, err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      recipient: recipientEmail,
+    });
+  }
+});
+
+exports.api = onRequest({ cors: true }, app);
+

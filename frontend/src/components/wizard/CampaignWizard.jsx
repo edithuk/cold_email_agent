@@ -31,6 +31,10 @@ export default function CampaignWizard({
   onDone,
   onSendComplete,
   savedStats,
+  onTogglePause,
+  onStop,
+  pausedRef,
+  stopRef,
 }) {
   const hasTemplate = stages.some(s => s.subject && s.body);
   const canSend = credState.credStatus === 'ok'
@@ -123,6 +127,10 @@ export default function CampaignWizard({
               addLog={addLog}
               onLaunch={() => setStep(4)}
               onSendComplete={onSendComplete}
+              pausedRef={pausedRef}
+              stopRef={stopRef}
+              onTogglePause={onTogglePause}
+              onStop={onStop}
             />
           )}
           {step === 4 && (
@@ -132,7 +140,13 @@ export default function CampaignWizard({
               contacts={contacts}
               colMap={colMap}
               rowStatuses={rowStatuses}
+              stages={stages}
+              currentIdx={currentIdx}
+              customTags={customTags}
               sending={sending}
+              paused={paused}
+              onTogglePause={onTogglePause}
+              onStop={onStop}
               savedStats={savedStats}
             />
           )}

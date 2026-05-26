@@ -10,7 +10,7 @@ export default function Header({ credStatus, email: connectedEmail, onNewCampaig
       <div className="header-brand">
         <div className="header-dot" />
         <span className="header-title" style={{ cursor: view === 'wizard' ? 'pointer' : 'default' }} onClick={view === 'wizard' && !isSending ? onBackToDashboard : undefined}>
-          Cold Email Agent
+          DripFlow
         </span>
         {view === 'dashboard' && (
           <span className="header-subtitle">/ Campaigns</span>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   collection, query, orderBy, getDocs, addDoc, updateDoc, doc,
   serverTimestamp,
@@ -32,7 +32,7 @@ function LoadingScreen() {
       <div className="loading-brand">
         <div className="header-dot" style={{ width: 12, height: 12 }} />
         <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
-          Cold Email Agent
+          DripFlow
         </span>
       </div>
       <span className="spinner" style={{ width: 20, height: 20, marginTop: 16 }} />
@@ -84,10 +84,28 @@ export default function App() {
   // ── Final send stats (set by SendControls via onSendComplete) ─────────
   const [finalSendStats, setFinalSendStats] = useState({ sent: 0, failed: 0 });
 
+  // ── Refs for pause/stop control ─────────────────────────────────────────
+  const pausedRef = useRef(false);
+  const stopRef   = useRef(false);
+
   // ── Logging helper ─────────────────────────────────────────────────────
   const addLog = useCallback((msg, type = 'info') => {
     setLogs(prev => [...prev, { msg, type, time: formatTime() }]);
   }, []);
+
+  // ── Pause / Stop handlers (passed to both SendControls and StepMonitor) ─
+  const handleTogglePause = useCallback(() => {
+    pausedRef.current = !pausedRef.current;
+    setPaused(pausedRef.current);
+    addLog(pausedRef.current ? 'Paused.' : 'Resumed.', 'warn');
+  }, [addLog]);
+
+  const handleStop = useCallback(() => {
+    stopRef.current   = true;
+    pausedRef.current = false;
+    setPaused(false);
+    addLog('Stopped by user.', 'warn');
+  }, [addLog]);
 
   // ── Load campaigns from Firestore ──────────────────────────────────────
   useEffect(() => {
@@ -180,14 +198,16 @@ export default function App() {
       try {
         const success = finalSendStats.sent;
         const failed  = finalSendStats.failed;
+        const pending = Math.max(0, contacts.length - success - failed);
+        const wasStopped = stopRef.current && pending > 0;
         const data = {
           name:       campaignName || `Campaign – ${new Date().toLocaleDateString()}`,
           contacts:   contacts.length,
           sent:       success,
           failed,
-          pending:    Math.max(0, contacts.length - success - failed),
+          pending,
           stages:     stages.length,
-          status:     success > 0 ? 'completed' : 'draft',
+          status:     wasStopped ? 'stopped' : success > 0 ? 'completed' : 'draft',
           updatedAt:  serverTimestamp(),
         };
 
@@ -279,6 +299,10 @@ export default function App() {
             onDone={handleDone}
             onSendComplete={stats => setFinalSendStats(stats)}
             savedStats={finalSendStats}
+            onTogglePause={handleTogglePause}
+            onStop={handleStop}
+            pausedRef={pausedRef}
+            stopRef={stopRef}
           />
         )}
       </div>
