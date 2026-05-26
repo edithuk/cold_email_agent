@@ -18,6 +18,7 @@ export default function TemplateEditor({
   customTags,
   onCustomTagsChange,
   onOpenSidebar,
+  hideSavedTemplatesButton,
 }) {
   const quillRef    = useRef(null);
   const [newTag,    setNewTag]    = useState('');
@@ -76,19 +77,21 @@ export default function TemplateEditor({
   }
 
   return (
-    <div className="panel panel-right-top">
+    <div className="template-editor-inner">
       {/* ── Panel Header ── */}
       <div className="section-header">
         <span className="section-title">04 · Email Template</span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button
-            id="open-templates-btn"
-            className="btn btn-secondary btn-sm"
-            onClick={onOpenSidebar}
-          >
-            📂 Saved Templates
-          </button>
-        </div>
+        {!hideSavedTemplatesButton && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              id="open-templates-btn"
+              className="btn btn-secondary btn-sm"
+              onClick={onOpenSidebar}
+            >
+              📂 Saved Templates
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Sequence Timeline ── */}
