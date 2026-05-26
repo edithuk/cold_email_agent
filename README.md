@@ -15,15 +15,33 @@ A sleek, state-of-the-art recruiter outreach CRM web application designed to run
 - **High-Security client-side encryption**: Your sensitive Gmail App Password is encrypted **locally in your browser** using the Web Cryptography API (`SubtleCrypto` utilizing PBKDF2 key derivation and 256-bit AES-GCM).
 - **Secure Cloud Storage**: Only the encrypted ciphertext is saved to Firestore. Without your unique account identifier and server-side environment secrets, the stored data is completely unreadable.
 
-### 📁 3. Cloud Template Vault & Custom Tags
+### 📊 3. Outbox Analytics & Campaign History Dashboard
+- **Aggregate Outreach Metrics**: An elegant dashboard dashboard metrics bar tracking:
+  - Total Outreach Campaigns launched
+  - Total Recipient Contacts reached
+  - Aggregated Email Delivery Success Rate
+- **History Logs & Persistence**: All campaigns persist securely in Cloud Firestore (`users/{uid}/campaigns`). View detailed outcomes from previous drip campaigns, see success ratios, and maintain a clear audit trail across browser sessions.
+
+### 🧙 4. Full-Screen 4-Step Campaign Wizard
+The application transitions from the Dashboard into a beautifully spaced, view-locked, 4-stage campaign setup wizard designed to avoid layout cramping:
+1. **📋 Step 1: Setup**:
+   - Provide a custom campaign name.
+   - Configure SMTP verification, local attachment uploads, and contact CSV/Excel file loading.
+   - **Compact CSV Previews**: Displays up to 50 rows of your loaded contact sheet in a compact, scrollable table within the Setup card so you can verify column mappings instantly.
+2. **✍️ Step 2: Compose**:
+   - **Full-Width Tab-Pill Toggle**: Switch fluidly between **✏️ Edit** and **👁 Preview** views. Both modes occupy the full viewport width, maximizing Quill text-editor comfort and preview reading scale.
+   - **Device Emulation Bezel**: Test layouts inside a highly detailed smartphone frame or desktop browser view.
+3. **🔍 Step 3: Review**:
+   - Compiles a complete campaign summary, template follow-up flow, and automatic **Pre-flight checklist** scanning.
+   - The primary **▶ Send Emails** button is beautifully locked into the bottom-right wizard navigation bar.
+4. **📈 Step 4: Monitor**:
+   - A dedicated real-time progress bar, auto-scrolling log console, active recipient table, and background follow-up job dispatch schedule lists.
+   - Supports opening completed campaigns from history in a read-only progress state.
+
+### 📁 5. Cloud Template Vault & Custom Tags
 - **Dynamic Template CRUD**: Save, update, load, and delete named templates directly in the cloud.
 - **🌍 Public / 🔒 Private Toggles**: Instantly share templates with the community or keep them securely in your personal vault.
-- **Dynamic CSV + Custom tag chips**: Includes Core tags (`<name>`, `<company>`, etc.), **CSV-derived tags** (auto-detected from *any* column header in your spreadsheet), and **freeform Custom tags** clickable to insert directly at the cursor.
-
-### 📱 4. Simulated Mobile & Desktop Device Preview Frame
-- **Device Emulation**: Fluidly toggle the dynamic email compiler between **Desktop Web** and **Mobile App** preview modes.
-- **Aesthetic Mobile Bezel**: Selecting mobile mode compiles your email directly inside a realistic, custom CSS-styled smartphone bezel with rounded corners, notch, and status bar, ensuring pixel-perfect layout testing.
-- **Contact Navigator**: Arrow controls to cycle through all imported contacts and view exactly how each dynamic tag compiles.
+- **Dynamic CSV + Custom tag chips**: Includes Core tags (`<name>`, `<email>`, `<company>`, `<role>`), **CSV-derived tags** (auto-detected from *any* column header in your spreadsheet), and **freeform Custom tags** clickable to insert directly at the cursor.
 
 ### 📈 6. Deliverability Grade & Spam Word Scanner
 - **Real-Time Pre-Flight Scan**: Scans email templates instantly against 250+ spam-trigger keywords across marketing, finance, clickbait, and urgency categories.
@@ -36,10 +54,6 @@ A sleek, state-of-the-art recruiter outreach CRM web application designed to run
   - **Relative Delay**: Set precise wait timers after the preceding send (e.g. wait `3 days` + `6 hours`).
   - **Absolute Date**: Use a dynamic date-time picker to schedule dispatch for a precise date and time.
 - **Live Scheduling Dashboard**: The `Scheduled Follow-ups` panel lists upcoming, pending, sent, and failed jobs, including a one-click manual cancellation option.
-
-### 🖥️ 8. Pro Viewport-Locked CSS Grid UX
-- **No Page Scroll**: Switch to a locked-viewport 3-row grid. Left-hand sidebar stays pinned so credentials and checklist options are always visible.
-- **Independent Scrolling Panels**: Proportional rows for Editor, Send Controls + Preview, and a side-by-side console (Activity Log | Scheduled Jobs | Contacts) scroll internally so the application feels like a native desktop app.
 
 ---
 
@@ -135,17 +149,19 @@ cold_email_agent/
 │   │   ├── components/       # Componentized frontend
 │   │   │   ├── auth/         # LoginPage, UserMenu
 │   │   │   ├── controls/     # SendControls
+│   │   │   ├── dashboard/    # Dashboard (aggregated stats & historical card grid)
 │   │   │   ├── editor/       # TemplateEditor, TemplateSidebar
 │   │   │   ├── layout/       # Header
-│   │   │   ├── panels/       # CredentialsPanel, ContactsPanel, ResumePanel
-│   │   │   └── preview/      # PreviewPanel (Device Frame + Spam Highlighter)
+│   │   │   ├── panels/       # CredentialsPanel, ContactsPanel (CSV Preview Table), ResumePanel
+│   │   │   ├── preview/      # PreviewPanel (Device Frame + Spam Highlighter)
+│   │   │   └── wizard/       # CampaignWizard wrapper & wizard step pages
 │   │   ├── context/          # AuthContext, ThemeContext
 │   │   ├── utils/            # SubtleCrypto AES-GCM & Spam scanner
 │   │   │   ├── crypto.js
 │   │   │   ├── template.js
 │   │   │   └── spamScanner.js
-│   │   ├── App.jsx           # Pro grid viewport shell assembly
-│   │   ├── index.css         # Styling system
+│   │   ├── App.jsx           # Multi-view dashboard & campaign setup coordinator
+│   │   ├── index.css         # Styling system & theme custom properties
 │   │   └── main.jsx          # Providers wrapper
 │   ├── vite.config.js        # Dev proxy configurations
 │   └── package.json
@@ -163,14 +179,17 @@ cold_email_agent/
 
 1. **Sign In**: Create a new account or log in with one-click **Google Sign-In**.
 2. **Setup Credentials**: Enter your Gmail address and paste your 16-character **Google App Password**. Click **Verify** to secure it locally, test the backend integration, and sync it to your Firestore cloud profile.
-3. **Load Contacts**: Drop your `.xlsx` or `.csv` spreadsheet.
-4. **Map Fields**: Select which sheet columns correspond to standard outreach values (Email, Name, Company, Role).
-5. **Craft Your Template Sequence**:
-   - Write your Initial Email subject and body.
-   - Click **+ Add Follow-up** to define up to 3 follow-up stages.
-   - Use relative time delays (e.g. `After 2 days, 12 hours`) or pick an exact calendar date.
-6. **Check Deliverability Grade**: Review the real-time spam scan. Hover over highlighted words in the Preview panel to see recommended synonyms to improve your deliverability score.
-7. **Pre-flight Check**: Check that all items in the pre-flight checklist are green.
-8. **Delay & Dispatch**: Set a safe delay (e.g. `15s` or higher) and hit **▶ Send Emails**! Initial emails will go out live, and future stages are written to Firestore as jobs for the Cloud Function to pick up automatically.
-9. **Monitor Dashboard**: Keep track of scheduled, sent, and cancelled follow-ups under the bottom dashboard.
-
+3. **Configure Campaign & Load Contacts**:
+   - Provide a unique Campaign Name on Step 1.
+   - Drop your `.xlsx` or `.csv` spreadsheet to inspect mapped fields and check parsed content in the compact preview table.
+4. **Compose Templates**:
+   - Toggle to **Edit** to draft your Initial Email and optional Drip Follow-ups.
+   - Insert customized tag chips. Use relative delays (e.g. `wait 3 days`) or absolute calendars.
+   - Toggle to **Preview** to emulated layouts inside desktop browser windows or realistic smartphone bezels.
+5. **Review Outbox Settings**:
+   - Verify the pre-flight checklist.
+   - Review sequence modes (Relative Drip vs Selective Send) and inter-contact delays.
+6. **Dispatch & Track**:
+   - Click **▶ Send Emails** on the bottom-right wizard navigation bar.
+   - Monitor real-time logs, pending follow-ups, and active rows on Step 4.
+   - Click **✓ Save & Close** to record your campaign outcomes back to the home dashboard!
