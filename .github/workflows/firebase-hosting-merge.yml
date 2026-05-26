@@ -20,6 +20,8 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_ENCRYPTION_SALT: ${{ secrets.VITE_ENCRYPTION_SALT }}
+      - name: Install Cloud Functions dependencies
+        run: cd functions && npm install
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
       - name: Deploy Frontend and Backend
