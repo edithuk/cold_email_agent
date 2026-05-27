@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { makeStage } from '../../App';
+import AiCopilotPanel from './AiCopilotPanel';
 
 const CORE_TAGS = ['name', 'email', 'company', 'role'];
 const MAX_STAGES = 4;
@@ -292,6 +293,15 @@ export default function TemplateEditor({
           )}
         </div>
       </div>
+
+      {/* ── AI Copilot ── */}
+      <AiCopilotPanel
+        activeStage={activeStage}
+        updateStageField={updateStageField}
+        customTags={customTags}
+        headers={headers}
+        stageLabel={STAGE_LABELS[activeStageIdx] || `Stage ${activeStageIdx + 1}`}
+      />
 
       {/* ── Subject ── */}
       <div className="form-group" style={{ marginTop: 12 }}>
