@@ -75,29 +75,58 @@ async function decryptField(cipherBase64, userId, salt) {
 function compileTemplate(template, row, colMap, customTags = []) {
   if (!template) return '';
   let result = template;
-  // Core field tags
+
+  // Helper: replace both raw <tag> and HTML-encoded &lt;tag&gt; forms
+  // Quill stores tags as &lt;tag&gt; in its HTML output, so we must handle both.
+  const replaceTag = (tagName, value) => {
+    if (value === undefined || value === null) return;
+    const strVal = String(value);
+    result = result
+      .replace(new RegExp(`<${tagName}>`, 'gi'), strVal)
+      .replace(new RegExp(`&lt;${tagName}&gt;`, 'gi'), strVal);
+  };
+
+  // Core field tags (name, email, company, role)
   if (colMap) {
     Object.entries(colMap).forEach(([field, col]) => {
       if (col && row[col] !== undefined) {
-        result = result.replace(new RegExp(`<${field}>`, 'gi'), row[col]);
+        replaceTag(field, row[col]);
       }
     });
   }
-  // CSV column tags (raw header names normalised to snake_case)
+  // CSV column tags (raw header names normalised to snake_case + original name)
   if (row) {
     Object.entries(row).forEach(([col, val]) => {
       const tag = col.toLowerCase().replace(/\s+/g, '_');
-      result = result.replace(new RegExp(`<${tag}>`, 'gi'), val ?? '');
+      replaceTag(tag, val ?? '');
+      replaceTag(col, val ?? '');  // also try original column name as-is
     });
   }
-  // Custom tags (leave unresolved ones blank)
+  // Custom tags (clear unresolved ones)
   if (customTags && customTags.length) {
     customTags.forEach(tag => {
-      result = result.replace(new RegExp(`<${tag}>`, 'gi'), '');
+      replaceTag(tag, '');
     });
   }
-  // Wipe any remaining unresolved tags
-  result = result.replace(/<\w+>/g, '');
+  // Wipe any remaining unresolved tags.
+  // IMPORTANT: only strip template-style tags — NOT real HTML elements.
+  // The broad /<\w+>/g was incorrectly stripping <p>, <br>, <strong>, etc.
+  const HTML_ELEMENTS = new Set([
+    'a', 'abbr', 'b', 'blockquote', 'br', 'caption', 'cite', 'code', 'col',
+    'colgroup', 'dd', 'del', 'details', 'dfn', 'fn', 'div', 'dl', 'dt', 'em',
+    'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'head', 'header', 'hr', 'html', 'i', 'img', 'ins', 'kbd', 'label', 'li',
+    'link', 'main', 'mark', 'meta', 'nav', 'ol', 'p', 'pre', 'q', 's',
+    'samp', 'section', 'small', 'span', 'strong', 'style', 'sub', 'summary',
+    'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'time', 'title',
+    'tr', 'u', 'ul', 'var',
+  ]);
+  // Strip &lt;tag&gt; form (always safe — these are never real HTML)
+  result = result.replace(/&lt;(\w+)&gt;/g, '');
+  // Strip <tag> form only if it's NOT a known HTML element
+  result = result.replace(/<(\w+)>/g, (match, tag) =>
+    HTML_ELEMENTS.has(tag.toLowerCase()) ? match : ''
+  );
   return result;
 }
 
@@ -162,6 +191,7 @@ exports.dispatchScheduledFollowUps = onSchedule(
       // Fetch SMTP credentials from Firestore
       let senderEmail = null;
       let senderPassword = null;
+      let senderName = null;
 
       try {
         const credDoc = await db.doc(`users/${userId}/profile/smtp`).get();
@@ -177,6 +207,8 @@ exports.dispatchScheduledFollowUps = onSchedule(
         // Support both 'gmailAddress' (written by frontend) and legacy 'email' field
         senderEmail = credData.gmailAddress || credData.email;
         const encryptedPassword = credData.encryptedPassword;
+        // Use stored display name (set by frontend from Firebase Auth) or fall back to email prefix
+        senderName = credData.displayName || senderEmail?.split('@')[0] || 'Sender';
 
         if (!senderEmail || !encryptedPassword) {
           console.warn(`[scheduler] Incomplete SMTP creds for user ${userId}. Fields found: ${Object.keys(credData).join(', ')}`);
@@ -217,7 +249,7 @@ exports.dispatchScheduledFollowUps = onSchedule(
           const plainText = htmlToText(compiledBody);
 
           const mailOptions = {
-            from: `"Cold Email Agent" <${senderEmail}>`,
+            from: `"${senderName}" <${senderEmail}>`,  // senderName from user's Firestore profile
             to: `${data.contactName ? data.contactName + ' <' : ''}${data.contactEmail}${data.contactName ? '>' : ''}`,
             subject: compiledSubject,
             html: compiledBody,

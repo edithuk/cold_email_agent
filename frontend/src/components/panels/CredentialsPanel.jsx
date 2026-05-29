@@ -96,6 +96,7 @@ export default function CredentialsPanel({ onCredChange }) {
         gmailAddress: email,
         email: email,          // Cloud Function reads this field
         encryptedPassword: encrypted,
+        displayName: user.displayName || email.split('@')[0], // used as "From" name in scheduler
         savedAt: new Date(),
         updatedAt: new Date(),
       });
