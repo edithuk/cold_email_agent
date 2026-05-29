@@ -266,6 +266,167 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '25mb' }));
 
+// Swagger UI Documentation
+const swaggerUi = require('swagger-ui-express');
+
+const swaggerDocument = {
+  openapi: '3.0.0',
+  info: {
+    title: 'DripFlow API Documentation',
+    version: '1.0.0',
+    description: 'Interactive API documentation for DripFlow cold email outreach CRM. You can verify system health, validate Gmail SMTP credentials, or send direct emails.',
+  },
+  servers: [
+    {
+      url: '/',
+      description: 'API Server',
+    },
+  ],
+  paths: {
+    '/api/health': {
+      get: {
+        summary: 'Health Check',
+        description: 'Verify if the DripFlow backend API is healthy and online.',
+        responses: {
+          200: {
+            description: 'API is healthy and running.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: { type: 'string', example: 'ok' },
+                    timestamp: { type: 'string', example: '2026-05-29T11:33:10.000Z' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/validate-credentials': {
+      post: {
+        summary: 'Validate SMTP Credentials',
+        description: 'Verifies your Gmail SMTP connection using Nodemailer. Make sure you use a Gmail App Password rather than your regular account password.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['senderEmail', 'senderPassword'],
+                properties: {
+                  senderEmail: { type: 'string', example: 'user@gmail.com' },
+                  senderPassword: { type: 'string', description: 'Gmail App Password', example: 'abcd efgh ijkl mnop' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'SMTP credentials verified successfully.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    message: { type: 'string', example: 'Gmail credentials verified successfully.' }
+                  }
+                }
+              }
+            }
+          },
+          401: {
+            description: 'Authentication or connection failed.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    error: { type: 'string', example: 'Authentication failed: Invalid credentials.' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/api/send-email': {
+      post: {
+        summary: 'Send Single Email',
+        description: 'Dispatches a single personalized email with optional attachments using Gmail SMTP.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['senderEmail', 'senderPassword', 'recipientEmail', 'subject', 'body'],
+                properties: {
+                  senderEmail: { type: 'string', example: 'user@gmail.com' },
+                  senderPassword: { type: 'string', description: 'Gmail App Password', example: 'abcd efgh ijkl mnop' },
+                  recipientEmail: { type: 'string', example: 'recipient@example.com' },
+                  recipientName: { type: 'string', example: 'John Doe' },
+                  subject: { type: 'string', example: 'Hello from DripFlow' },
+                  body: { type: 'string', description: 'HTML formatted body content', example: '<p>Hi John,<br/>This is an outreach message.</p>' },
+                  attachment: {
+                    type: 'object',
+                    properties: {
+                      filename: { type: 'string', example: 'resume.pdf' },
+                      content: { type: 'string', description: 'Base64 encoded file attachment content', example: 'JVBERi0xLjQK...' },
+                      contentType: { type: 'string', example: 'application/pdf' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: {
+            description: 'Email sent successfully.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    messageId: { type: 'string', example: '<some-msg-id@mail.gmail.com>' },
+                    recipient: { type: 'string', example: 'recipient@example.com' },
+                    name: { type: 'string', example: 'John Doe' }
+                  }
+                }
+              }
+            }
+          },
+          500: {
+            description: 'Internal server or SMTP error.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: false },
+                    error: { type: 'string', example: 'Connection timeout or invalid authentication.' },
+                    recipient: { type: 'string', example: 'recipient@example.com' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
