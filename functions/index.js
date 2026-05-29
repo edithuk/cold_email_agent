@@ -9,15 +9,15 @@
  *   Updates the job document to 'sent' or 'failed'.
  */
 
-const { onSchedule }        = require('firebase-functions/v2/scheduler');
-const { onRequest }         = require('firebase-functions/v2/https');
-const { defineSecret }      = require('firebase-functions/params');
-const { initializeApp }     = require('firebase-admin/app');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onRequest } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
+const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
-const nodemailer            = require('nodemailer');
-const express               = require('express');
-const cors                  = require('cors');
-const { subtle }            = require('crypto').webcrypto;   // Node 20 has Web Crypto built-in
+const nodemailer = require('nodemailer');
+const express = require('express');
+const cors = require('cors');
+const { subtle } = require('crypto').webcrypto;   // Node 20 has Web Crypto built-in
 
 initializeApp();
 const db = getFirestore();
@@ -40,10 +40,10 @@ async function deriveKey(userId, salt) {
   );
   return subtle.deriveKey(
     {
-      name:       'PBKDF2',
-      salt:       enc.encode(salt),
+      name: 'PBKDF2',
+      salt: enc.encode(salt),
       iterations: 100_000,
-      hash:       'SHA-256',
+      hash: 'SHA-256',
     },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
@@ -54,9 +54,9 @@ async function deriveKey(userId, salt) {
 
 async function decryptField(cipherBase64, userId, salt) {
   try {
-    const key      = await deriveKey(userId, salt);
+    const key = await deriveKey(userId, salt);
     const combined = Buffer.from(cipherBase64, 'base64');
-    const iv       = combined.slice(0, 12);
+    const iv = combined.slice(0, 12);
     const ciphertext = combined.slice(12);
     const decrypted = await subtle.decrypt(
       { name: 'AES-GCM', iv },
@@ -121,22 +121,22 @@ function htmlToText(html) {
 
 exports.dispatchScheduledFollowUps = onSchedule(
   {
-    schedule:  'every 1 hours',   // Runs at the top of every hour
-    timeZone:  'UTC',
-    secrets:   [ENCRYPTION_SALT],
-    memory:    '256MiB',
+    schedule: 'every 1 hours',   // Runs at the top of every hour
+    timeZone: 'UTC',
+    secrets: [ENCRYPTION_SALT],
+    memory: '256MiB',
     timeoutSeconds: 540,
   },
   async (event) => {
     const salt = ENCRYPTION_SALT.value();
-    const now  = Timestamp.now();
+    const now = Timestamp.now();
     console.log(`[scheduler] Running at ${now.toDate().toISOString()}`);
 
     // ── 1. Find all pending jobs across ALL users that are due ────────────
     // Firestore collectionGroup query across all users
     const snapshot = await db
       .collectionGroup('scheduled_jobs')
-      .where('status',    '==', 'pending')
+      .where('status', '==', 'pending')
       .where('sendAfter', '<=', now)
       .limit(200)   // process max 200 per run to stay within timeout
       .get();
@@ -160,7 +160,7 @@ exports.dispatchScheduledFollowUps = onSchedule(
     // ── 2. Process each user's jobs ───────────────────────────────────────
     for (const [userId, jobs] of Object.entries(jobsByUser)) {
       // Fetch SMTP credentials from Firestore
-      let senderEmail    = null;
+      let senderEmail = null;
       let senderPassword = null;
 
       try {
@@ -174,11 +174,13 @@ exports.dispatchScheduledFollowUps = onSchedule(
         }
 
         const credData = credDoc.data();
-        senderEmail    = credData.email;
+        // Support both 'gmailAddress' (written by frontend) and legacy 'email' field
+        senderEmail = credData.gmailAddress || credData.email;
         const encryptedPassword = credData.encryptedPassword;
 
         if (!senderEmail || !encryptedPassword) {
-          throw new Error('Incomplete SMTP credentials in Firestore');
+          console.warn(`[scheduler] Incomplete SMTP creds for user ${userId}. Fields found: ${Object.keys(credData).join(', ')}`);
+          throw new Error('Incomplete SMTP credentials in Firestore (missing gmailAddress or encryptedPassword)');
         }
 
         senderPassword = await decryptField(encryptedPassword, userId, salt);
@@ -211,15 +213,15 @@ exports.dispatchScheduledFollowUps = onSchedule(
 
         try {
           const compiledSubject = compileTemplate(data.subject, data.contactRow, data.colMap, data.customTags);
-          const compiledBody    = compileTemplate(data.body,    data.contactRow, data.colMap, data.customTags);
-          const plainText       = htmlToText(compiledBody);
+          const compiledBody = compileTemplate(data.body, data.contactRow, data.colMap, data.customTags);
+          const plainText = htmlToText(compiledBody);
 
           const mailOptions = {
-            from:    `"Cold Email Agent" <${senderEmail}>`,
-            to:      `${data.contactName ? data.contactName + ' <' : ''}${data.contactEmail}${data.contactName ? '>' : ''}`,
+            from: `"Cold Email Agent" <${senderEmail}>`,
+            to: `${data.contactName ? data.contactName + ' <' : ''}${data.contactEmail}${data.contactName ? '>' : ''}`,
             subject: compiledSubject,
-            html:    compiledBody,
-            text:    plainText,
+            html: compiledBody,
+            text: plainText,
           };
 
           // Attach resume if present
@@ -227,25 +229,25 @@ exports.dispatchScheduledFollowUps = onSchedule(
             const buffer = Buffer.from(data.resumeBase64.split(',')[1] || data.resumeBase64, 'base64');
             mailOptions.attachments = [{
               filename: data.resumeFilename || 'resume.pdf',
-              content:  buffer,
+              content: buffer,
             }];
           }
 
           await transporter.sendMail(mailOptions);
 
           await ref.update({
-            status:    'sent',
-            sentAt:    FieldValue.serverTimestamp(),
+            status: 'sent',
+            sentAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
-            error:     null,
+            error: null,
           });
 
           console.log(`[scheduler] ✓ Sent Stage ${data.stageIdx + 1} → ${data.contactEmail}`);
         } catch (sendErr) {
           console.error(`[scheduler] ✗ Failed Stage ${data.stageIdx + 1} → ${data.contactEmail}:`, sendErr.message);
           await ref.update({
-            status:    'failed',
-            error:     sendErr.message,
+            status: 'failed',
+            error: sendErr.message,
             updatedAt: FieldValue.serverTimestamp(),
           });
         }

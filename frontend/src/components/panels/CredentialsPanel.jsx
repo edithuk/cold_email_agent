@@ -9,13 +9,13 @@ const API_BASE = '';
 export default function CredentialsPanel({ onCredChange }) {
   const { user } = useAuth();
 
-  const [email,       setEmail]       = useState('');
+  const [email, setEmail] = useState('');
   const [appPassword, setAppPassword] = useState('');
-  const [credStatus,  setCredStatus]  = useState('idle');   // idle|verifying|ok|error
-  const [credMsg,     setCredMsg]     = useState('');
+  const [credStatus, setCredStatus] = useState('idle');   // idle|verifying|ok|error
+  const [credMsg, setCredMsg] = useState('');
   const [cloudLoaded, setCloudLoaded] = useState(false);
-  const [showHelp,    setShowHelp]    = useState(false);
-  const [saving,      setSaving]      = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // ── Load from Firestore on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -27,11 +27,25 @@ export default function CredentialsPanel({ onCredChange }) {
           const data = snap.data();
           const decrypted = await decryptField(data.encryptedPassword, user.uid);
           if (data.gmailAddress) setEmail(data.gmailAddress);
-          if (decrypted)         setAppPassword(decrypted);
+          if (decrypted) setAppPassword(decrypted);
           if (data.gmailAddress && decrypted) {
             setCloudLoaded(true);
             setCredStatus('ok');
             setCredMsg('Credentials loaded from your account ☁');
+
+            // ── Migration: older docs only have 'gmailAddress', not 'email'.
+            // The Cloud Function reads 'email', so patch it silently if missing.
+            if (!data.email && data.gmailAddress) {
+              try {
+                await setDoc(
+                  doc(db, 'users', user.uid, 'profile', 'smtp'),
+                  { email: data.gmailAddress },
+                  { merge: true }
+                );
+              } catch (patchErr) {
+                console.warn('[CredentialsPanel] Migration patch failed:', patchErr.message);
+              }
+            }
           }
         }
       } catch (err) {
@@ -76,12 +90,17 @@ export default function CredentialsPanel({ onCredChange }) {
     setSaving(true);
     try {
       const encrypted = await encryptField(appPassword, user.uid);
+      // Write both 'gmailAddress' (canonical) and 'email' (backwards-compat)
+      // so both frontend loads and the Cloud Function scheduler can read it.
       await setDoc(doc(db, 'users', user.uid, 'profile', 'smtp'), {
-        gmailAddress:      email,
+        gmailAddress: email,
+        email: email,          // Cloud Function reads this field
         encryptedPassword: encrypted,
-        updatedAt:         new Date(),
+        savedAt: new Date(),
+        updatedAt: new Date(),
       });
       setCloudLoaded(true);
+      setCredMsg('Gmail connection verified ✓ Credentials saved to your account.');
     } catch (err) {
       console.warn('[CredentialsPanel] Firestore save failed:', err.message);
     } finally {
@@ -94,9 +113,10 @@ export default function CredentialsPanel({ onCredChange }) {
     try {
       await updateDoc(doc(db, 'users', user.uid, 'profile', 'smtp'), {
         gmailAddress: '',
+        email: '',     // clear both fields
         encryptedPassword: '',
       });
-    } catch {}
+    } catch { }
     setEmail('');
     setAppPassword('');
     setCredStatus('idle');
@@ -110,7 +130,7 @@ export default function CredentialsPanel({ onCredChange }) {
         <span className="section-title">01 · Gmail Account</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {cloudLoaded && <span className="section-badge badge-info">☁ Cloud</span>}
-          {credStatus === 'ok'    && <span className="section-badge badge-success">Verified</span>}
+          {credStatus === 'ok' && <span className="section-badge badge-success">Verified</span>}
           {credStatus === 'error' && <span className="section-badge badge-error">Failed</span>}
         </div>
       </div>
