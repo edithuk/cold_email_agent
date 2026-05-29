@@ -1,0 +1,56 @@
+name: Manual Deploy to Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'What to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - hosting
+          - functions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Frontend
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'hosting' }}
+        run: cd frontend && npm ci && npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_ENCRYPTION_SALT: ${{ secrets.VITE_ENCRYPTION_SALT }}
+          VITE_AI_PROVIDER: ${{ secrets.VITE_AI_PROVIDER }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_GEMINI_MODEL: ${{ secrets.VITE_GEMINI_MODEL }}
+          VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          VITE_GROQ_MODEL: ${{ secrets.VITE_GROQ_MODEL }}
+
+      - name: Install Cloud Functions dependencies
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'functions' }}
+        run: cd functions && npm install
+
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      - name: Deploy All (Hosting + Functions)
+        if: ${{ github.event.inputs.target == 'all' }}
+        run: firebase deploy --non-interactive --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Deploy Hosting Only
+        if: ${{ github.event.inputs.target == 'hosting' }}
+        run: firebase deploy --only hosting --non-interactive --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Deploy Functions Only
+        if: ${{ github.event.inputs.target == 'functions' }}
+        run: firebase deploy --only functions --non-interactive --token "${{ secrets.FIREBASE_TOKEN }}"
