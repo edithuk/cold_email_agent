@@ -3,6 +3,7 @@ import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { makeStage } from '../../App';
 import AiCopilotPanel from './AiCopilotPanel';
+import { isStageScheduled } from '../../utils/stageUtils';
 
 const CORE_TAGS = ['name', 'email', 'company', 'role'];
 const MAX_STAGES = 4;
@@ -98,11 +99,8 @@ export default function TemplateEditor({
       {/* ── Sequence Timeline ── */}
       <div className="sequence-timeline">
         {stages.map((stage, idx) => {
-          // Determine if this stage is "scheduled" (has a non-zero/absolute delay)
-          const isStage0Sched = idx === 0 && (
-            (stage.delayMode === 'absolute' && stage.sendAt) ||
-            (stage.delayMode !== 'absolute' && ((stage.delayDays ?? 0) > 0 || (stage.delayHours ?? 0) > 0))
-          );
+          // Stage 0 is "scheduled" when it has a non-zero or absolute delay
+          const isStage0Sched = idx === 0 && isStageScheduled(stage);
           return (
             <div key={stage.id} className="timeline-step">
               {/* Connecting arrow between stages */}

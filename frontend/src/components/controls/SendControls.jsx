@@ -5,8 +5,9 @@ import {
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { compileTemplate, sleep } from '../../utils/template';
+import { isStageScheduled } from '../../utils/stageUtils';
 
-const API_BASE   = '';
+const API_BASE = '';
 const STAGE_LABELS = ['Initial Email', 'Follow-up 1', 'Follow-up 2', 'Follow-up 3'];
 
 export default function SendControls({
@@ -19,10 +20,10 @@ export default function SendControls({
   customTags,
   // State passed from parent
   sending, setSending,
-  paused,  setPaused,
-  delay,   setDelay,
+  paused, setPaused,
+  delay, setDelay,
   rowStatuses, setRowStatuses,
-  currentIdx,  setCurrentIdx,
+  currentIdx, setCurrentIdx,
   setLogs,
   addLog,
   onLaunch,
@@ -30,43 +31,43 @@ export default function SendControls({
   onSendComplete,
   // Optional: external refs from App.jsx for shared pause/stop state
   pausedRef: externalPausedRef,
-  stopRef:   externalStopRef,
+  stopRef: externalStopRef,
   // Optional: external handlers for monitor-level controls
   onTogglePause: externalTogglePause,
-  onStop:        externalStop,
+  onStop: externalStop,
 }) {
-  const { user }  = useAuth();
+  const { user } = useAuth();
   const internalPausedRef = useRef(false);
-  const internalStopRef   = useRef(false);
+  const internalStopRef = useRef(false);
   const pausedRef = externalPausedRef || internalPausedRef;
-  const stopRef   = externalStopRef   || internalStopRef;
+  const stopRef = externalStopRef || internalStopRef;
 
   // Campaign mode: 'drip' | 'selective'
-  const [campaignMode,  setCampaignMode]  = useState('drip');
+  const [campaignMode, setCampaignMode] = useState('drip');
   const [selectedStage, setSelectedStage] = useState(0);
 
   // ── Derived stats ──────────────────────────────────────────────────────────
-  const total   = contacts.length;
+  const total = contacts.length;
   const success = rowStatuses.filter(s => s === 'success').length;
-  const failed  = rowStatuses.filter(s => s === 'error').length;
+  const failed = rowStatuses.filter(s => s === 'error').length;
   const pending = rowStatuses.filter(s => s === 'pending').length;
-  const pct     = total ? Math.round(((success + failed) / total) * 100) : 0;
+  const pct = total ? Math.round(((success + failed) / total) * 100) : 0;
   const hasTemplate = stages.some(s => s.subject && s.body);
 
   // ── Single email dispatch via Express backend ─────────────────────────────
   async function sendEmailNow({ recipientEmail, recipientName, subject, body, row }) {
-    const compiledBody    = compileTemplate(body,    row, colMap, customTags);
+    const compiledBody = compileTemplate(body, row, colMap, customTags);
     const compiledSubject = compileTemplate(subject, row, colMap, customTags);
     const res = await fetch(`${API_BASE}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        senderEmail:    email,
+        senderEmail: email,
         senderPassword: appPassword,
         recipientEmail,
         recipientName,
-        subject:    compiledSubject,
-        body:       compiledBody,
+        subject: compiledSubject,
+        body: compiledBody,
         attachment: resume || null,
       }),
     });
@@ -87,46 +88,35 @@ export default function SendControls({
       }
     } else {
       // Relative: days + hours from baseTimeMs (defaults to now for follow-ups)
-      const base  = baseTimeMs ?? Date.now();
+      const base = baseTimeMs ?? Date.now();
       const defaultDays = stageIdx === 0 ? 0 : 3;
-      const days  = (stage.delayDays  ?? defaultDays) * 24 * 60 * 60 * 1000;
+      const days = (stage.delayDays ?? defaultDays) * 24 * 60 * 60 * 1000;
       const hours = (stage.delayHours ?? 0) * 60 * 60 * 1000;
       sendAfterMs = base + days + hours;
     }
 
     await addDoc(collection(db, 'users', user.uid, 'scheduled_jobs'), {
-      userId:        user.uid,
-      contactEmail:  row[colMap.email]?.toString().trim() || '',
-      contactName:   colMap.name ? row[colMap.name]?.toString().trim() : '',
-      contactRow:    row,
+      userId: user.uid,
+      contactEmail: row[colMap.email]?.toString().trim() || '',
+      contactName: colMap.name ? row[colMap.name]?.toString().trim() : '',
+      contactRow: row,
       stageIdx,
-      stageLabel:    STAGE_LABELS[stageIdx] || `Stage ${stageIdx + 1}`,
-      subject:       stage.subject || '',
-      body:          stage.body    || '',
+      stageLabel: STAGE_LABELS[stageIdx] || `Stage ${stageIdx + 1}`,
+      subject: stage.subject || '',
+      body: stage.body || '',
       colMap,
-      customTags:    customTags || [],
-      resumeBase64:  resume?.base64 || null,
-      resumeFilename: resume?.name  || null,
-      sendAfter:     Timestamp.fromMillis(sendAfterMs),
-      status:        'pending',
-      error:         null,
-      sentAt:        null,
-      createdAt:     serverTimestamp(),
-      updatedAt:     serverTimestamp(),
+      customTags: customTags || [],
+      resumeBase64: resume?.base64 || null,
+      resumeFilename: resume?.name || null,
+      sendAfter: Timestamp.fromMillis(sendAfterMs),
+      status: 'pending',
+      error: null,
+      sentAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
     return sendAfterMs;
-  }
-
-  // ── Determine if Stage 0 should be scheduled (not sent immediately) ───────
-  function stage0IsScheduled(stage0) {
-    if (stage0.delayMode === 'absolute' && stage0.sendAt) return true;
-    if (stage0.delayMode !== 'absolute') {
-      const days  = stage0.delayDays  ?? 0;
-      const hours = stage0.delayHours ?? 0;
-      return days > 0 || hours > 0;
-    }
-    return false;
   }
 
 
@@ -143,17 +133,17 @@ export default function SendControls({
   // If Stage 0 has 0 delay → send immediately + queue follow-ups from now.
   async function runDripLoop() {
     const statuses = [...rowStatuses];
-    const stage0   = stages[0];
-    const isScheduled = stage0IsScheduled(stage0);
+    const stage0 = stages[0];
+    const isScheduled = isStageScheduled(stage0);
 
     for (let i = currentIdx; i < contacts.length; i++) {
       if (stopRef.current) { addLog('Stopped by user.', 'warn'); break; }
       await waitWhilePaused();
       if (stopRef.current) break;
 
-      const row            = contacts[i];
+      const row = contacts[i];
       const recipientEmail = row[colMap.email]?.toString().trim();
-      const recipientName  = colMap.name ? row[colMap.name]?.toString().trim() : '';
+      const recipientName = colMap.name ? row[colMap.name]?.toString().trim() : '';
 
       setCurrentIdx(i);
       statuses[i] = 'active';
@@ -177,47 +167,54 @@ export default function SendControls({
           const delayLabel = stage0.delayMode === 'absolute' && stage0.sendAt
             ? `on ${fireTime}`
             : (() => {
-                const d = stage0.delayDays  ?? 0;
-                const h = stage0.delayHours ?? 0;
-                return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
-              })();
+              const d = stage0.delayDays ?? 0;
+              const h = stage0.delayHours ?? 0;
+              return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
+            })();
           addLog(
             `[${i + 1}/${total}] 📅 ${STAGE_LABELS[0]} scheduled → ${recipientEmail} — fires ${delayLabel}`,
             'system'
           );
-          statuses[i] = 'success';
-          setRowStatuses([...statuses]);
         } catch (qErr) {
           addLog(`[${i + 1}/${total}] ⚠ Failed to schedule ${STAGE_LABELS[0]} for ${recipientEmail}: ${qErr.message}`, 'warn');
           statuses[i] = 'error';
           setRowStatuses([...statuses]);
         }
 
-        // Queue follow-ups chained off Stage 0's scheduled time
-        if (stage0SendAfterMs && stages.length > 1) {
-          for (let sIdx = 1; sIdx < stages.length; sIdx++) {
-            const stage = stages[sIdx];
-            if (!stage.subject || !stage.body) continue;
-            try {
-              const sendAfterMs = await queueJob({ row, stage, stageIdx: sIdx, baseTimeMs: stage0SendAfterMs });
-              const fireTime = new Date(sendAfterMs).toLocaleString(undefined, {
-                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-              });
-              const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
-                ? `on ${fireTime}`
-                : (() => {
-                    const d = stage.delayDays  ?? 3;
+        // Queue follow-ups chained off Stage 0's scheduled time.
+        // Defer the row's final status write until here so a follow-up
+        // failure is reflected in the UI (row goes 'error' instead of 'success').
+        if (stage0SendAfterMs) {
+          let followUpsFailed = false;
+          if (stages.length > 1) {
+            for (let sIdx = 1; sIdx < stages.length; sIdx++) {
+              const stage = stages[sIdx];
+              if (!stage.subject || !stage.body) continue;
+              try {
+                const sendAfterMs = await queueJob({ row, stage, stageIdx: sIdx, baseTimeMs: stage0SendAfterMs });
+                const fireTime = new Date(sendAfterMs).toLocaleString(undefined, {
+                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                });
+                const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
+                  ? `on ${fireTime}`
+                  : (() => {
+                    const d = stage.delayDays ?? 3;
                     const h = stage.delayHours ?? 0;
                     return `+${d}d${h > 0 ? ` ${h}h` : ''} after initial (${fireTime})`;
                   })();
-              addLog(
-                `📅 ${STAGE_LABELS[sIdx]} queued → ${recipientEmail} — fires ${delayLabel}`,
-                'system'
-              );
-            } catch (qErr) {
-              addLog(`⚠ Failed to queue ${STAGE_LABELS[sIdx]} for ${recipientEmail}: ${qErr.message}`, 'warn');
+                addLog(
+                  `📅 ${STAGE_LABELS[sIdx]} queued → ${recipientEmail} — fires ${delayLabel}`,
+                  'system'
+                );
+              } catch (qErr) {
+                followUpsFailed = true;
+                addLog(`⚠ Failed to queue ${STAGE_LABELS[sIdx]} for ${recipientEmail}: ${qErr.message}`, 'warn');
+              }
             }
           }
+          // Only mark success once all follow-ups have been attempted
+          statuses[i] = followUpsFailed ? 'error' : 'success';
+          setRowStatuses([...statuses]);
         }
       } else {
         // ── Path B: Stage 0 sends IMMEDIATELY ────────────────────────────────
@@ -228,7 +225,7 @@ export default function SendControls({
           const data = await sendEmailNow({
             recipientEmail, recipientName, row,
             subject: stage0.subject,
-            body:    stage0.body,
+            body: stage0.body,
           });
           if (data.success) {
             stage0Success = true;
@@ -256,10 +253,10 @@ export default function SendControls({
               const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
                 ? `on ${fireTime}`
                 : (() => {
-                    const d = stage.delayDays  ?? 3;
-                    const h = stage.delayHours ?? 0;
-                    return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
-                  })();
+                  const d = stage.delayDays ?? 3;
+                  const h = stage.delayHours ?? 0;
+                  return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
+                })();
               addLog(
                 `📅 ${STAGE_LABELS[sIdx]} queued → ${recipientEmail} — fires ${delayLabel}`,
                 'system'
@@ -282,7 +279,7 @@ export default function SendControls({
 
   // ── SELECTIVE mode: send one specific stage now ───────────────────────────
   async function runSelectiveLoop(stageIdx) {
-    const stage   = stages[stageIdx];
+    const stage = stages[stageIdx];
     const statuses = [...rowStatuses];
 
     for (let i = currentIdx; i < contacts.length; i++) {
@@ -290,9 +287,9 @@ export default function SendControls({
       await waitWhilePaused();
       if (stopRef.current) break;
 
-      const row            = contacts[i];
+      const row = contacts[i];
       const recipientEmail = row[colMap.email]?.toString().trim();
-      const recipientName  = colMap.name ? row[colMap.name]?.toString().trim() : '';
+      const recipientName = colMap.name ? row[colMap.name]?.toString().trim() : '';
 
       setCurrentIdx(i);
       statuses[i] = 'active';
@@ -303,7 +300,7 @@ export default function SendControls({
         const data = await sendEmailNow({
           recipientEmail, recipientName, row,
           subject: stage.subject,
-          body:    stage.body,
+          body: stage.body,
         });
         if (data.success) {
           statuses[i] = 'success';
@@ -329,12 +326,12 @@ export default function SendControls({
 
   // ── Entry point ───────────────────────────────────────────────────────────
   async function startSending() {
-    if (!email || !appPassword)  { addLog('Enter Gmail credentials first.', 'warn'); return; }
-    if (!contacts.length)         { addLog('Upload a contacts file first.', 'warn'); return; }
-    if (!colMap.email)            { addLog('Map the Email column first.', 'warn'); return; }
-    if (!hasTemplate)             { addLog('Enter subject and body in at least Stage 1.', 'warn'); return; }
+    if (!email || !appPassword) { addLog('Enter Gmail credentials first.', 'warn'); return; }
+    if (!contacts.length) { addLog('Upload a contacts file first.', 'warn'); return; }
+    if (!colMap.email) { addLog('Map the Email column first.', 'warn'); return; }
+    if (!hasTemplate) { addLog('Enter subject and body in at least Stage 1.', 'warn'); return; }
 
-    stopRef.current   = false;
+    stopRef.current = false;
     pausedRef.current = false;
     setPaused(false);
     setSending(true);
@@ -368,13 +365,13 @@ export default function SendControls({
 
   function stopSending() {
     if (externalStop) { externalStop(); return; }
-    stopRef.current   = true;
+    stopRef.current = true;
     pausedRef.current = false;
     setPaused(false);
   }
 
   function resetAll() {
-    stopRef.current   = true;
+    stopRef.current = true;
     pausedRef.current = false;
     setSending(false);
     setPaused(false);
@@ -397,9 +394,9 @@ export default function SendControls({
       ),
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
     a.download = `campaign_report_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
@@ -410,7 +407,7 @@ export default function SendControls({
       <div className="section-header">
         <span className="section-title">05 · Send Controls</span>
         {sending && !paused && <span className="section-badge badge-info"><span className="spinner" style={{ marginRight: 4 }} />Running</span>}
-        {sending && paused   && <span className="section-badge badge-warn">Paused</span>}
+        {sending && paused && <span className="section-badge badge-warn">Paused</span>}
         {!sending && success > 0 && <span className="section-badge badge-success">{pct}% done</span>}
       </div>
 
@@ -455,16 +452,16 @@ export default function SendControls({
       {campaignMode === 'drip' && !sending && (
         <div className="drip-summary">
           {stages.map((stage, idx) => {
-            const isStage0Sched = idx === 0 && stage0IsScheduled(stage);
+            const isStage0Sched = idx === 0 && isStageScheduled(stage);
             const delayLabel = isStage0Sched
               ? (stage.delayMode === 'absolute' && stage.sendAt
-                  ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  : `+${stage.delayDays ?? 0}d`)
+                ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                : `+${stage.delayDays ?? 0}d`)
               : (idx > 0
-                  ? (stage.delayMode === 'absolute' && stage.sendAt
-                      ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                      : `+${stage.delayDays ?? 3}d`)
-                  : null);
+                ? (stage.delayMode === 'absolute' && stage.sendAt
+                  ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  : `+${stage.delayDays ?? 3}d`)
+                : null);
             return (
               <span key={idx} className="drip-summary-step">
                 {idx > 0 && <span className="drip-summary-arrow">→ {delayLabel} →</span>}
