@@ -73,8 +73,9 @@ export default function SendControls({
     return res.json();
   }
 
-  // ── Queue a follow-up job to Firestore ────────────────────────────────────
-  async function queueFollowUp({ row, stage, stageIdx }) {
+  // ── Queue any stage job to Firestore ─────────────────────────────────────
+  // baseTimeMs: optional base timestamp for relative follow-ups (chains off Stage 0 if scheduled)
+  async function queueJob({ row, stage, stageIdx, baseTimeMs }) {
     if (!user) return;
 
     // Compute sendAfter timestamp based on scheduling mode
@@ -85,10 +86,12 @@ export default function SendControls({
         throw new Error(`Invalid or past date for ${STAGE_LABELS[stageIdx]}`);
       }
     } else {
-      // Relative: days + hours from now
-      const days  = (stage.delayDays  ?? 3) * 24 * 60 * 60 * 1000;
+      // Relative: days + hours from baseTimeMs (defaults to now for follow-ups)
+      const base  = baseTimeMs ?? Date.now();
+      const defaultDays = stageIdx === 0 ? 0 : 3;
+      const days  = (stage.delayDays  ?? defaultDays) * 24 * 60 * 60 * 1000;
       const hours = (stage.delayHours ?? 0) * 60 * 60 * 1000;
-      sendAfterMs = Date.now() + days + hours;
+      sendAfterMs = base + days + hours;
     }
 
     await addDoc(collection(db, 'users', user.uid, 'scheduled_jobs'), {
@@ -115,6 +118,17 @@ export default function SendControls({
     return sendAfterMs;
   }
 
+  // ── Determine if Stage 0 should be scheduled (not sent immediately) ───────
+  function stage0IsScheduled(stage0) {
+    if (stage0.delayMode === 'absolute' && stage0.sendAt) return true;
+    if (stage0.delayMode !== 'absolute') {
+      const days  = stage0.delayDays  ?? 0;
+      const hours = stage0.delayHours ?? 0;
+      return days > 0 || hours > 0;
+    }
+    return false;
+  }
+
 
   // ── Pause-safe sleep helper ───────────────────────────────────────────────
   async function waitWhilePaused() {
@@ -124,9 +138,13 @@ export default function SendControls({
     }
   }
 
-  // ── DRIP mode: send Stage 1 now → queue Stages 2+ to Firestore ───────────
+  // ── DRIP mode ─────────────────────────────────────────────────────────────
+  // If Stage 0 has a scheduled delay → queue it + follow-ups to Firestore.
+  // If Stage 0 has 0 delay → send immediately + queue follow-ups from now.
   async function runDripLoop() {
     const statuses = [...rowStatuses];
+    const stage0   = stages[0];
+    const isScheduled = stage0IsScheduled(stage0);
 
     for (let i = currentIdx; i < contacts.length; i++) {
       if (stopRef.current) { addLog('Stopped by user.', 'warn'); break; }
@@ -141,8 +159,6 @@ export default function SendControls({
       statuses[i] = 'active';
       setRowStatuses([...statuses]);
 
-      // Stage 0 (Initial Email) — send right now
-      const stage0 = stages[0];
       if (!stage0.subject || !stage0.body) {
         addLog(`[${i + 1}/${total}] Skipped — Stage 1 has no template.`, 'warn');
         statuses[i] = 'error';
@@ -150,55 +166,110 @@ export default function SendControls({
         continue;
       }
 
-      addLog(`[${i + 1}/${total}] Sending ${STAGE_LABELS[0]} → ${recipientEmail}…`, 'info');
-
-      let stage0Success = false;
-      try {
-        const data = await sendEmailNow({
-          recipientEmail, recipientName, row,
-          subject: stage0.subject,
-          body:    stage0.body,
-        });
-        if (data.success) {
-          stage0Success = true;
-          addLog(`✓ ${STAGE_LABELS[0]} sent → ${recipientEmail}`, 'success');
-        } else {
-          addLog(`✗ ${STAGE_LABELS[0]} failed (${recipientEmail}): ${data.error}`, 'error');
+      // ── Path A: Stage 0 is SCHEDULED → queue it, chain follow-ups off it ──
+      if (isScheduled) {
+        let stage0SendAfterMs = null;
+        try {
+          stage0SendAfterMs = await queueJob({ row, stage: stage0, stageIdx: 0 });
+          const fireTime = new Date(stage0SendAfterMs).toLocaleString(undefined, {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+          });
+          const delayLabel = stage0.delayMode === 'absolute' && stage0.sendAt
+            ? `on ${fireTime}`
+            : (() => {
+                const d = stage0.delayDays  ?? 0;
+                const h = stage0.delayHours ?? 0;
+                return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
+              })();
+          addLog(
+            `[${i + 1}/${total}] 📅 ${STAGE_LABELS[0]} scheduled → ${recipientEmail} — fires ${delayLabel}`,
+            'system'
+          );
+          statuses[i] = 'success';
+          setRowStatuses([...statuses]);
+        } catch (qErr) {
+          addLog(`[${i + 1}/${total}] ⚠ Failed to schedule ${STAGE_LABELS[0]} for ${recipientEmail}: ${qErr.message}`, 'warn');
+          statuses[i] = 'error';
+          setRowStatuses([...statuses]);
         }
-      } catch (err) {
-        addLog(`✗ Network error (${recipientEmail}): ${err.message}`, 'error');
-      }
 
-      statuses[i] = stage0Success ? 'success' : 'error';
-      setRowStatuses([...statuses]);
+        // Queue follow-ups chained off Stage 0's scheduled time
+        if (stage0SendAfterMs && stages.length > 1) {
+          for (let sIdx = 1; sIdx < stages.length; sIdx++) {
+            const stage = stages[sIdx];
+            if (!stage.subject || !stage.body) continue;
+            try {
+              const sendAfterMs = await queueJob({ row, stage, stageIdx: sIdx, baseTimeMs: stage0SendAfterMs });
+              const fireTime = new Date(sendAfterMs).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+              });
+              const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
+                ? `on ${fireTime}`
+                : (() => {
+                    const d = stage.delayDays  ?? 3;
+                    const h = stage.delayHours ?? 0;
+                    return `+${d}d${h > 0 ? ` ${h}h` : ''} after initial (${fireTime})`;
+                  })();
+              addLog(
+                `📅 ${STAGE_LABELS[sIdx]} queued → ${recipientEmail} — fires ${delayLabel}`,
+                'system'
+              );
+            } catch (qErr) {
+              addLog(`⚠ Failed to queue ${STAGE_LABELS[sIdx]} for ${recipientEmail}: ${qErr.message}`, 'warn');
+            }
+          }
+        }
+      } else {
+        // ── Path B: Stage 0 sends IMMEDIATELY ────────────────────────────────
+        addLog(`[${i + 1}/${total}] Sending ${STAGE_LABELS[0]} → ${recipientEmail}…`, 'info');
 
-      // Only queue follow-ups if Stage 1 succeeded
-      if (stage0Success && stages.length > 1) {
-        for (let sIdx = 1; sIdx < stages.length; sIdx++) {
-          const stage = stages[sIdx];
-          if (!stage.subject || !stage.body) continue;
-          try {
-            const sendAfterMs = await queueFollowUp({ row, stage, stageIdx: sIdx });
-            const fireTime = new Date(sendAfterMs).toLocaleString(undefined, {
-              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-            });
-            const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
-              ? `on ${fireTime}`
-              : (() => {
-                  const d = stage.delayDays  ?? 3;
-                  const h = stage.delayHours ?? 0;
-                  return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
-                })();
-            addLog(
-              `📅 ${STAGE_LABELS[sIdx]} queued → ${recipientEmail} — fires ${delayLabel}`,
-              'system'
-            );
-          } catch (qErr) {
-            addLog(`⚠ Failed to queue ${STAGE_LABELS[sIdx]} for ${recipientEmail}: ${qErr.message}`, 'warn');
+        let stage0Success = false;
+        try {
+          const data = await sendEmailNow({
+            recipientEmail, recipientName, row,
+            subject: stage0.subject,
+            body:    stage0.body,
+          });
+          if (data.success) {
+            stage0Success = true;
+            addLog(`✓ ${STAGE_LABELS[0]} sent → ${recipientEmail}`, 'success');
+          } else {
+            addLog(`✗ ${STAGE_LABELS[0]} failed (${recipientEmail}): ${data.error}`, 'error');
+          }
+        } catch (err) {
+          addLog(`✗ Network error (${recipientEmail}): ${err.message}`, 'error');
+        }
+
+        statuses[i] = stage0Success ? 'success' : 'error';
+        setRowStatuses([...statuses]);
+
+        // Queue follow-ups relative to now (original behaviour)
+        if (stage0Success && stages.length > 1) {
+          for (let sIdx = 1; sIdx < stages.length; sIdx++) {
+            const stage = stages[sIdx];
+            if (!stage.subject || !stage.body) continue;
+            try {
+              const sendAfterMs = await queueJob({ row, stage, stageIdx: sIdx });
+              const fireTime = new Date(sendAfterMs).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+              });
+              const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
+                ? `on ${fireTime}`
+                : (() => {
+                    const d = stage.delayDays  ?? 3;
+                    const h = stage.delayHours ?? 0;
+                    return `in ${d}d${h > 0 ? ` ${h}h` : ''} (${fireTime})`;
+                  })();
+              addLog(
+                `📅 ${STAGE_LABELS[sIdx]} queued → ${recipientEmail} — fires ${delayLabel}`,
+                'system'
+              );
+            } catch (qErr) {
+              addLog(`⚠ Failed to queue ${STAGE_LABELS[sIdx]} for ${recipientEmail}: ${qErr.message}`, 'warn');
+            }
           }
         }
       }
-
 
       // Inter-contact delay
       if (i < contacts.length - 1 && !stopRef.current) {
@@ -381,14 +452,27 @@ export default function SendControls({
       )}
 
       {/* Drip mode info strip */}
-      {campaignMode === 'drip' && stages.length > 1 && !sending && (
+      {campaignMode === 'drip' && !sending && (
         <div className="drip-summary">
-          {stages.map((stage, idx) => (
-            <span key={idx} className="drip-summary-step">
-              {idx > 0 && <span className="drip-summary-arrow">→ +{stage.delayDays}d →</span>}
-              <span className="drip-summary-stage">{STAGE_LABELS[idx]}</span>
-            </span>
-          ))}
+          {stages.map((stage, idx) => {
+            const isStage0Sched = idx === 0 && stage0IsScheduled(stage);
+            const delayLabel = isStage0Sched
+              ? (stage.delayMode === 'absolute' && stage.sendAt
+                  ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  : `+${stage.delayDays ?? 0}d`)
+              : (idx > 0
+                  ? (stage.delayMode === 'absolute' && stage.sendAt
+                      ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                      : `+${stage.delayDays ?? 3}d`)
+                  : null);
+            return (
+              <span key={idx} className="drip-summary-step">
+                {idx > 0 && <span className="drip-summary-arrow">→ {delayLabel} →</span>}
+                {idx === 0 && isStage0Sched && <span className="drip-summary-arrow">📅 {delayLabel} →</span>}
+                <span className="drip-summary-stage">{STAGE_LABELS[idx]}</span>
+              </span>
+            );
+          })}
           <span className="drip-real-badge">⏰ real-time cloud schedule</span>
         </div>
       )}
