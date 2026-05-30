@@ -85,7 +85,7 @@ export default function ScheduledJobsPanel() {
   return (
     <div className="scheduled-jobs-panel">
       <div className="section-header">
-        <span className="section-title">📅 Scheduled Follow-ups</span>
+        <span className="section-title">📅 Scheduled Emails</span>
         {counts.pending > 0 && (
           <span className="section-badge badge-info">{counts.pending} pending</span>
         )}
@@ -122,9 +122,9 @@ export default function ScheduledJobsPanel() {
           {filter === 'pending'
             ? <>
                 <span style={{ fontSize: 20 }}>📭</span>
-                No pending follow-ups.<br />
+                No pending scheduled emails.<br />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Run a Drip campaign to schedule real follow-ups.
+                  Schedule a Drip campaign to queue emails for later.
                 </span>
               </>
             : `No ${filter} jobs.`
