@@ -49,8 +49,10 @@ export default function SendControls({
   // ── Derived stats ──────────────────────────────────────────────────────────
   const total = contacts.length;
   const success = rowStatuses.filter(s => s === 'success').length;
-  const failed = rowStatuses.filter(s => s === 'error').length;
+  const queued  = rowStatuses.filter(s => s === 'queued').length;
+  const failed  = rowStatuses.filter(s => s === 'error').length;
   const pending = rowStatuses.filter(s => s === 'pending').length;
+  // 'queued' rows are not yet sent — exclude from progress %
   const pct = total ? Math.round(((success + failed) / total) * 100) : 0;
   const hasTemplate = stages.some(s => s.subject && s.body);
 
@@ -212,8 +214,8 @@ export default function SendControls({
               }
             }
           }
-          // Only mark success once all follow-ups have been attempted
-          statuses[i] = followUpsFailed ? 'error' : 'success';
+          // 'queued' = Stage 0 written to Firestore but not yet sent
+          statuses[i] = followUpsFailed ? 'error' : 'queued';
           setRowStatuses([...statuses]);
         }
       } else {
@@ -385,7 +387,10 @@ export default function SendControls({
     if (!contacts.length) return;
     const rows = contacts.map((row, i) => ({
       ...row,
-      'Outreach Status': rowStatuses[i] === 'success' ? 'Sent' : rowStatuses[i] === 'error' ? 'Failed' : 'Pending',
+      'Outreach Status': rowStatuses[i] === 'success' ? 'Sent'
+        : rowStatuses[i] === 'queued'  ? 'Scheduled'
+        : rowStatuses[i] === 'error'   ? 'Failed'
+        : 'Pending',
     }));
     const csv = [
       Object.keys(rows[0]).join(','),

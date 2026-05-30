@@ -122,10 +122,12 @@ export default function StepMonitor({
 }) {
   const hasLiveData = rowStatuses.length > 0;
   const total   = hasLiveData ? contacts.length                                    : (savedStats?.sent || 0) + (savedStats?.failed || 0);
-  const success = hasLiveData ? rowStatuses.filter(s => s === 'success').length    : (savedStats?.sent   || 0);
-  const failed  = hasLiveData ? rowStatuses.filter(s => s === 'error').length      : (savedStats?.failed || 0);
-  const pending = hasLiveData ? rowStatuses.filter(s => s === 'pending').length    : 0;
-  const pct     = total ? Math.round((success + failed) / total * 100) : 0;
+  const success = hasLiveData ? rowStatuses.filter(s => s === 'success').length : (savedStats?.sent   || 0);
+  const queued  = hasLiveData ? rowStatuses.filter(s => s === 'queued').length  : 0;
+  const failed  = hasLiveData ? rowStatuses.filter(s => s === 'error').length   : (savedStats?.failed || 0);
+  const pending = hasLiveData ? rowStatuses.filter(s => s === 'pending').length : 0;
+  // 'queued' rows are not yet sent — exclude from progress %
+  const pct = total ? Math.round((success + failed) / total * 100) : 0;
 
   return (
     <>
@@ -150,6 +152,7 @@ export default function StepMonitor({
           </div>
           <div style={{ display: 'flex', gap: 20, marginTop: 10, fontSize: 12 }}>
             <span style={{ color: 'var(--green)' }}><strong>{success}</strong> sent</span>
+            <span style={{ color: 'var(--accent)' }}><strong>{queued}</strong> queued</span>
             <span style={{ color: 'var(--red)' }}><strong>{failed}</strong> failed</span>
             <span style={{ color: 'var(--text-muted)' }}><strong>{pending}</strong> pending</span>
           </div>
@@ -222,6 +225,7 @@ export default function StepMonitor({
                       className={
                         rowStatuses[i] === 'active'  ? 'row-active'  :
                         rowStatuses[i] === 'success' ? 'row-success' :
+                        rowStatuses[i] === 'queued'  ? 'row-queued'  :
                         rowStatuses[i] === 'error'   ? 'row-error'   : ''
                       }
                     >
