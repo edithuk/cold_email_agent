@@ -461,11 +461,15 @@ export default function SendControls({
             const delayLabel = isStage0Sched
               ? (stage.delayMode === 'absolute' && stage.sendAt
                 ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                : `+${stage.delayDays ?? 0}d`)
+                : (stage.delayHours ?? 0) > 0 && !(stage.delayDays ?? 0)
+                  ? `+${stage.delayHours}h`
+                  : `+${stage.delayDays ?? 0}d${(stage.delayHours ?? 0) > 0 ? ` ${stage.delayHours}h` : ''}`)
               : (idx > 0
                 ? (stage.delayMode === 'absolute' && stage.sendAt
                   ? new Date(stage.sendAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  : `+${stage.delayDays ?? 3}d`)
+                  : (stage.delayDays != null || (stage.delayHours ?? 0) > 0)
+                    ? `+${stage.delayDays ?? 0}d${(stage.delayHours ?? 0) > 0 ? ` ${stage.delayHours}h` : ''}`
+                    : '+3d')
                 : null);
             return (
               <span key={idx} className="drip-summary-step">
