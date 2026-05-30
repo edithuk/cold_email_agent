@@ -1234,10 +1234,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: var(--yellow-soft);
   border-color: var(--yellow);
   color: var(--yellow);
-  animation: confirmShake 0.35s ease;
+  animation: confirm-shake 0.35s ease;
 }
 
-@keyframes confirmShake {
+@keyframes confirm-shake {
 
   0%,
   100% {
@@ -1422,7 +1422,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
   top: -100px;
   left: -100px;
-  animation: orbFloat 8s ease-in-out infinite;
+  animation: orb-float 8s ease-in-out infinite;
 }
 
 .auth-orb-2 {
@@ -1431,7 +1431,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: radial-gradient(circle, var(--green) 0%, transparent 70%);
   bottom: -80px;
   right: 10%;
-  animation: orbFloat 10s ease-in-out infinite reverse;
+  animation: orb-float 10s ease-in-out infinite reverse;
 }
 
 .auth-orb-3 {
@@ -1440,10 +1440,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: radial-gradient(circle, var(--yellow) 0%, transparent 70%);
   top: 40%;
   right: -60px;
-  animation: orbFloat 12s ease-in-out infinite 2s;
+  animation: orb-float 12s ease-in-out infinite 2s;
 }
 
-@keyframes orbFloat {
+@keyframes orb-float {
 
   0%,
   100% {
@@ -1814,10 +1814,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   flex-direction: column;
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
-  animation: slideInRight 0.22s ease;
+  animation: slide-in-right 0.22s ease;
 }
 
-@keyframes slideInRight {
+@keyframes slide-in-right {
   from {
     transform: translateX(100%);
   }
@@ -1919,10 +1919,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 12px;
   font-weight: 500;
   border-bottom: 1px solid var(--border-subtle);
-  animation: statusSlideIn 0.2s ease;
+  animation: status-slide-in 0.2s ease;
 }
 
-@keyframes statusSlideIn {
+@keyframes status-slide-in {
   from {
     opacity: 0;
     transform: translateY(-6px);
@@ -2357,10 +2357,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .deliverability-report {
   border-top: 1px solid var(--border-subtle);
   padding: 10px 12px;
-  animation: slideDown 0.25s ease-out;
+  animation: slide-down 0.25s ease-out;
 }
 
-@keyframes slideDown {
+@keyframes slide-down {
   from {
     opacity: 0;
     transform: translateY(-5px);
