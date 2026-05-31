@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { compileTemplate, sleep } from '../../utils/template';
 import { isStageScheduled } from '../../utils/stageUtils';
 
-const API_BASE    = '';
+const API_BASE = '';
 const STAGE_LABELS = ['Initial Email', 'Follow-up 1', 'Follow-up 2', 'Follow-up 3'];
 
 export default function SendControls({
@@ -41,9 +41,9 @@ export default function SendControls({
 }) {
   const { user } = useAuth();
   const internalPausedRef = useRef(false);
-  const internalStopRef   = useRef(false);
+  const internalStopRef = useRef(false);
   const pausedRef = externalPausedRef || internalPausedRef;
-  const stopRef   = externalStopRef   || internalStopRef;
+  const stopRef = externalStopRef || internalStopRef;
 
   // Track the active server-side campaign ID (for drip mode pause/stop)
   const [serverCampaignId, setServerCampaignId] = useState(null);
@@ -54,28 +54,28 @@ export default function SendControls({
   const [selectedStage, setSelectedStage] = useState(0);
 
   // ── Derived stats ────────────────────────────────────────────────────────
-  const total   = contacts.length;
+  const total = contacts.length;
   const success = rowStatuses.filter(s => s === 'success').length;
-  const queued  = rowStatuses.filter(s => s === 'queued').length;
-  const failed  = rowStatuses.filter(s => s === 'error').length;
+  const queued = rowStatuses.filter(s => s === 'queued').length;
+  const failed = rowStatuses.filter(s => s === 'error').length;
   const pending = rowStatuses.filter(s => s === 'pending').length;
-  const pct     = total ? Math.round(((success + failed) / total) * 100) : 0;
+  const pct = total ? Math.round(((success + failed) / total) * 100) : 0;
   const hasTemplate = stages.some(s => s.subject && s.body);
 
   // ── Single email dispatch via Express backend (selective mode) ────────────
   async function sendEmailNow({ recipientEmail, recipientName, subject, body, row }) {
-    const compiledBody    = compileTemplate(body,    row, colMap, customTags);
+    const compiledBody = compileTemplate(body, row, colMap, customTags);
     const compiledSubject = compileTemplate(subject, row, colMap, customTags);
     const res = await fetch(`${API_BASE}/api/send-email`, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        senderEmail:    email,
+      body: JSON.stringify({
+        senderEmail: email,
         senderPassword: appPassword,
         recipientEmail,
         recipientName,
         subject: compiledSubject,
-        body:    compiledBody,
+        body: compiledBody,
         attachment: resume || null,
       }),
     });
@@ -93,32 +93,32 @@ export default function SendControls({
         throw new Error(`Invalid or past date for ${STAGE_LABELS[stageIdx]}`);
       }
     } else {
-      const base        = baseTimeMs ?? Date.now();
+      const base = baseTimeMs ?? Date.now();
       const defaultDays = stageIdx === 0 ? 0 : 3;
-      const days        = (stage.delayDays  ?? defaultDays) * 24 * 60 * 60 * 1000;
-      const hours       = (stage.delayHours ?? 0) * 60 * 60 * 1000;
-      sendAfterMs       = base + days + hours;
+      const days = (stage.delayDays ?? defaultDays) * 24 * 60 * 60 * 1000;
+      const hours = (stage.delayHours ?? 0) * 60 * 60 * 1000;
+      sendAfterMs = base + days + hours;
     }
 
     await addDoc(collection(db, 'users', user.uid, 'scheduled_jobs'), {
-      userId:         user.uid,
-      contactEmail:   row[colMap.email]?.toString().trim() || '',
-      contactName:    colMap.name ? row[colMap.name]?.toString().trim() : '',
-      contactRow:     row,
+      userId: user.uid,
+      contactEmail: row[colMap.email]?.toString().trim() || '',
+      contactName: colMap.name ? row[colMap.name]?.toString().trim() : '',
+      contactRow: row,
       stageIdx,
-      stageLabel:     STAGE_LABELS[stageIdx] || `Stage ${stageIdx + 1}`,
-      subject:        stage.subject || '',
-      body:           stage.body    || '',
+      stageLabel: STAGE_LABELS[stageIdx] || `Stage ${stageIdx + 1}`,
+      subject: stage.subject || '',
+      body: stage.body || '',
       colMap,
-      customTags:     customTags || [],
-      resumeBase64:   resume?.base64 || null,
-      resumeFilename: resume?.name   || null,
-      sendAfter:      Timestamp.fromMillis(sendAfterMs),
-      status:         'pending',
-      error:          null,
-      sentAt:         null,
-      createdAt:      serverTimestamp(),
-      updatedAt:      serverTimestamp(),
+      customTags: customTags || [],
+      resumeBase64: resume?.content || null,
+      resumeFilename: resume?.filename || null,
+      sendAfter: Timestamp.fromMillis(sendAfterMs),
+      status: 'pending',
+      error: null,
+      sentAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
     return sendAfterMs;
@@ -143,21 +143,21 @@ export default function SendControls({
 
     try {
       const token = await user.getIdToken();
-      const res   = await fetch(`${API_BASE}/api/start-campaign`, {
-        method:  'POST',
+      const res = await fetch(`${API_BASE}/api/start-campaign`, {
+        method: 'POST',
         headers: {
-          'Content-Type':  'application/json',
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           contacts,
           stages,
           colMap,
-          customTags:     customTags    || [],
-          delaySeconds:   delay,
-          campaignName:   campaignName  || '',
-          resumeBase64:   resume?.base64 || null,
-          resumeFilename: resume?.name   || null,
+          customTags: customTags || [],
+          delaySeconds: delay,
+          campaignName: campaignName || '',
+          resumeBase64: resume?.content || null,
+          resumeFilename: resume?.filename || null,
         }),
       });
 
@@ -226,7 +226,7 @@ export default function SendControls({
             setSending(false);
             setServerCampaignId(null);
 
-            const sent   = d.sent   || 0;
+            const sent = d.sent || 0;
             const failed = d.failed || 0;
             if (onSendComplete) onSendComplete({ sent, failed });
 
@@ -254,9 +254,9 @@ export default function SendControls({
     try {
       const token = await user.getIdToken();
       await fetch(`${API_BASE}/api/pause-campaign`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body:    JSON.stringify({ campaignId: id }),
+        body: JSON.stringify({ campaignId: id }),
       });
       addLog('⏸ Pause requested — will pause after current email.', 'warn');
     } catch (err) {
@@ -268,9 +268,9 @@ export default function SendControls({
     try {
       const token = await user.getIdToken();
       await fetch(`${API_BASE}/api/resume-campaign`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body:    JSON.stringify({ campaignId: id }),
+        body: JSON.stringify({ campaignId: id }),
       });
       addLog('▶ Resumed.', 'system');
     } catch (err) {
@@ -282,9 +282,9 @@ export default function SendControls({
     try {
       const token = await user.getIdToken();
       await fetch(`${API_BASE}/api/stop-campaign`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body:    JSON.stringify({ campaignId: id }),
+        body: JSON.stringify({ campaignId: id }),
       });
       addLog('⏹ Stop requested — will stop after current email.', 'warn');
     } catch (err) {
@@ -294,7 +294,7 @@ export default function SendControls({
 
   // ── SELECTIVE MODE loop (browser-side, unchanged) ─────────────────────────
   async function runSelectiveLoop(stageIdx) {
-    const stage    = stages[stageIdx];
+    const stage = stages[stageIdx];
     const statuses = [...rowStatuses];
 
     for (let i = currentIdx; i < contacts.length; i++) {
@@ -302,9 +302,9 @@ export default function SendControls({
       await waitWhilePaused();
       if (stopRef.current) break;
 
-      const row            = contacts[i];
+      const row = contacts[i];
       const recipientEmail = row[colMap.email]?.toString().trim();
-      const recipientName  = colMap.name ? row[colMap.name]?.toString().trim() : '';
+      const recipientName = colMap.name ? row[colMap.name]?.toString().trim() : '';
 
       setCurrentIdx(i);
       statuses[i] = 'active';
@@ -315,7 +315,7 @@ export default function SendControls({
         const data = await sendEmailNow({
           recipientEmail, recipientName, row,
           subject: stage.subject,
-          body:    stage.body,
+          body: stage.body,
         });
         if (data.success) {
           statuses[i] = 'success';
@@ -344,16 +344,16 @@ export default function SendControls({
   // The "send immediately" drip path now goes server-side.
   async function runDripScheduledLoop() {
     const statuses = [...rowStatuses];
-    const stage0   = stages[0];
+    const stage0 = stages[0];
 
     for (let i = currentIdx; i < contacts.length; i++) {
       if (stopRef.current) { addLog('Stopped by user.', 'warn'); break; }
       await waitWhilePaused();
       if (stopRef.current) break;
 
-      const row            = contacts[i];
+      const row = contacts[i];
       const recipientEmail = row[colMap.email]?.toString().trim();
-      const recipientName  = colMap.name ? row[colMap.name]?.toString().trim() : '';
+      const recipientName = colMap.name ? row[colMap.name]?.toString().trim() : '';
 
       setCurrentIdx(i);
       statuses[i] = 'active';
@@ -369,7 +369,7 @@ export default function SendControls({
       let stage0SendAfterMs = null;
       try {
         stage0SendAfterMs = await queueJob({ row, stage: stage0, stageIdx: 0 });
-        const fireTime  = new Date(stage0SendAfterMs).toLocaleString(undefined, {
+        const fireTime = new Date(stage0SendAfterMs).toLocaleString(undefined, {
           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
         });
         const delayLabel = stage0.delayMode === 'absolute' && stage0.sendAt
@@ -397,7 +397,7 @@ export default function SendControls({
           if (!stage.subject || !stage.body) continue;
           try {
             const sendAfterMs = await queueJob({ row, stage, stageIdx: sIdx, baseTimeMs: stage0SendAfterMs });
-            const fireTime    = new Date(sendAfterMs).toLocaleString(undefined, {
+            const fireTime = new Date(sendAfterMs).toLocaleString(undefined, {
               month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
             });
             const delayLabel = stage.delayMode === 'absolute' && stage.sendAt
@@ -428,16 +428,16 @@ export default function SendControls({
   // ── Entry point ──────────────────────────────────────────────────────────
   async function startSending() {
     if (!email || !appPassword) { addLog('Enter Gmail credentials first.', 'warn'); return; }
-    if (!contacts.length)       { addLog('Upload a contacts file first.', 'warn'); return; }
-    if (!colMap.email)          { addLog('Map the Email column first.', 'warn'); return; }
-    if (!hasTemplate)           { addLog('Enter subject and body in at least Stage 1.', 'warn'); return; }
+    if (!contacts.length) { addLog('Upload a contacts file first.', 'warn'); return; }
+    if (!colMap.email) { addLog('Map the Email column first.', 'warn'); return; }
+    if (!hasTemplate) { addLog('Enter subject and body in at least Stage 1.', 'warn'); return; }
 
-    stopRef.current   = false;
+    stopRef.current = false;
     pausedRef.current = false;
 
     if (campaignMode === 'drip') {
-      const stage0       = stages[0];
-      const isScheduled  = isStageScheduled(stage0);
+      const stage0 = stages[0];
+      const isScheduled = isStageScheduled(stage0);
 
       if (!isScheduled) {
         // Stage 0 sends immediately → use server-side processing (page-close-safe)
@@ -501,13 +501,13 @@ export default function SendControls({
     }
     // Legacy browser-side
     if (externalStop) { externalStop(); return; }
-    stopRef.current   = true;
+    stopRef.current = true;
     pausedRef.current = false;
     setPaused(false);
   }
 
   function resetAll() {
-    stopRef.current   = true;
+    stopRef.current = true;
     pausedRef.current = false;
     if (snapshotUnsubRef.current) { snapshotUnsubRef.current(); snapshotUnsubRef.current = null; }
     setSending(false);
@@ -524,9 +524,9 @@ export default function SendControls({
     const rows = contacts.map((row, i) => ({
       ...row,
       'Outreach Status': rowStatuses[i] === 'success' ? 'Sent'
-        : rowStatuses[i] === 'queued'  ? 'Scheduled'
-        : rowStatuses[i] === 'error'   ? 'Failed'
-        : 'Pending',
+        : rowStatuses[i] === 'queued' ? 'Scheduled'
+          : rowStatuses[i] === 'error' ? 'Failed'
+            : 'Pending',
     }));
     const csv = [
       Object.keys(rows[0]).join(','),
@@ -535,9 +535,9 @@ export default function SendControls({
       ),
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
     a.download = `campaign_report_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
@@ -548,7 +548,7 @@ export default function SendControls({
       <div className="section-header">
         <span className="section-title">05 · Send Controls</span>
         {sending && !paused && <span className="section-badge badge-info"><span className="spinner" style={{ marginRight: 4 }} />Running</span>}
-        {sending && paused  && <span className="section-badge badge-warn">Paused</span>}
+        {sending && paused && <span className="section-badge badge-warn">Paused</span>}
         {!sending && success > 0 && <span className="section-badge badge-success">{pct}% done</span>}
       </div>
 
