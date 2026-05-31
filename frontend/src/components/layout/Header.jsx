@@ -1,27 +1,62 @@
 import { useTheme } from '../../context/ThemeContext';
 import UserMenu from '../auth/UserMenu';
+import { useNavigate, useLocation } from 'react-router-dom';
 
-export default function Header({ credStatus, email: connectedEmail, onNewCampaign, isSending, view, onBackToDashboard }) {
+export default function Header({ credStatus, email: connectedEmail, isSending }) {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isDashboard = location.pathname === '/';
+  const isQueue = location.pathname === '/queue';
+  const isNewCampaign = location.pathname === '/campaign/new';
+  const isCampaignMonitor = location.pathname.startsWith('/campaign/') && !isNewCampaign;
+  const isWizard = isNewCampaign || isCampaignMonitor;
 
   return (
     <header className="header">
       {/* Brand */}
       <div className="header-brand">
         <div className="header-dot" />
-        <span className="header-title" style={{ cursor: view === 'wizard' ? 'pointer' : 'default' }} onClick={view === 'wizard' ? onBackToDashboard : undefined}>
+        <span
+          className="header-title"
+          style={{ cursor: !isDashboard ? 'pointer' : 'default' }}
+          onClick={!isDashboard ? () => navigate('/') : undefined}
+        >
           DripFlow
         </span>
-        {view === 'dashboard' && (
+        {isDashboard && (
           <span className="header-subtitle">/ Campaigns</span>
         )}
-        {view === 'wizard' && (
-          <span className="header-subtitle" style={{ cursor: 'pointer' }} onClick={onBackToDashboard}>
+        {isQueue && (
+          <span
+            className="header-subtitle"
+            style={{ cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >
+            / <span style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>Campaigns</span> / Send Queue
+          </span>
+        )}
+        {isNewCampaign && (
+          <span
+            className="header-subtitle"
+            style={{ cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >
             / <span style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>Campaigns</span> / New Campaign
           </span>
         )}
+        {isCampaignMonitor && (
+          <span
+            className="header-subtitle"
+            style={{ cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >
+            / <span style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>Campaigns</span> / Campaign Monitor
+          </span>
+        )}
         {/* Running indicator — visible from any page when a campaign is sending */}
-        {isSending && view !== 'wizard' && (
+        {isSending && !isWizard && (
           <span style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -48,9 +83,9 @@ export default function Header({ credStatus, email: connectedEmail, onNewCampaig
           <div className="header-status">
             <div className={`status-dot ${credStatus === 'ok' ? 'connected' : credStatus === 'error' ? 'error' : ''}`} />
             <span>
-              {credStatus === 'ok'        ? `Connected · ${connectedEmail}` :
-               credStatus === 'error'     ? 'Auth failed' :
-               credStatus === 'verifying' ? 'Verifying…' : 'Not connected'}
+              {credStatus === 'ok' ? `Connected · ${connectedEmail}` :
+                credStatus === 'error' ? 'Auth failed' :
+                  credStatus === 'verifying' ? 'Verifying…' : 'Not connected'}
             </span>
           </div>
         )}

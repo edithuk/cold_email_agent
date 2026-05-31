@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    historyApiFallback: true,
     proxy: {
       '/api': {
         // http-proxy only uses the origin from target (ignores any path).
