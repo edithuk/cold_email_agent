@@ -1,7 +1,7 @@
 /**
  * Dashboard – Campaign history grid with quick stats.
  */
-export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign }) {
+export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign, onOpenQueue }) {
   // Aggregate stats across all campaigns
   const totalSent   = campaigns.reduce((s, c) => s + (c.sent || 0), 0);
   const totalFailed = campaigns.reduce((s, c) => s + (c.failed || 0), 0);
@@ -26,9 +26,14 @@ export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign }) 
             Manage and track all your outreach campaigns
           </div>
         </div>
-        <button className="btn btn-primary" onClick={onNewCampaign}>
-          + New Campaign
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={onOpenQueue}>
+            📬 Send Queue
+          </button>
+          <button className="btn btn-primary" onClick={onNewCampaign}>
+            + New Campaign
+          </button>
+        </div>
       </div>
 
       {/* Stats bar */}

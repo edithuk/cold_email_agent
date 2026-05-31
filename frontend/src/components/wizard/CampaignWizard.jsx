@@ -35,6 +35,7 @@ export default function CampaignWizard({
   onStop,
   pausedRef,
   stopRef,
+  onCampaignStarted,
 }) {
   const hasTemplate = stages.some(s => s.subject && s.body);
   const canSend = credState.credStatus === 'ok'
@@ -131,6 +132,7 @@ export default function CampaignWizard({
               stopRef={stopRef}
               onTogglePause={onTogglePause}
               onStop={onStop}
+              onCampaignStarted={onCampaignStarted}
             />
           )}
           {step === 4 && (
