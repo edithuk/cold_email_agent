@@ -9,15 +9,34 @@ export default function Header({ credStatus, email: connectedEmail, onNewCampaig
       {/* Brand */}
       <div className="header-brand">
         <div className="header-dot" />
-        <span className="header-title" style={{ cursor: view === 'wizard' ? 'pointer' : 'default' }} onClick={view === 'wizard' && !isSending ? onBackToDashboard : undefined}>
+        <span className="header-title" style={{ cursor: view === 'wizard' ? 'pointer' : 'default' }} onClick={view === 'wizard' ? onBackToDashboard : undefined}>
           DripFlow
         </span>
         {view === 'dashboard' && (
           <span className="header-subtitle">/ Campaigns</span>
         )}
         {view === 'wizard' && (
-          <span className="header-subtitle" style={{ cursor: 'pointer' }} onClick={!isSending ? onBackToDashboard : undefined}>
+          <span className="header-subtitle" style={{ cursor: 'pointer' }} onClick={onBackToDashboard}>
             / <span style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>Campaigns</span> / New Campaign
+          </span>
+        )}
+        {/* Running indicator — visible from any page when a campaign is sending */}
+        {isSending && view !== 'wizard' && (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            marginLeft: 12,
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--accent)',
+            background: 'var(--accent)15',
+            border: '1px solid var(--accent)33',
+            borderRadius: 20,
+            padding: '2px 8px',
+          }}>
+            <span className="spinner" style={{ width: 7, height: 7 }} />
+            Sending
           </span>
         )}
       </div>

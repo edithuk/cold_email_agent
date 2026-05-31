@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import {
   collection, addDoc, serverTimestamp, Timestamp,
-  doc, onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -47,7 +46,8 @@ export default function SendControls({
 
   // Track the active server-side campaign ID (for drip mode pause/stop)
   const [serverCampaignId, setServerCampaignId] = useState(null);
-  const snapshotUnsubRef = useRef(null);
+  // Note: the Firestore snapshot is now owned by App.jsx (persists across navigation)
+  // This ref is kept only so pause/stop handlers have the campaign ID.
 
   // Campaign mode: 'drip' | 'selective'
   const [campaignMode, setCampaignMode] = useState('drip');
@@ -188,60 +188,8 @@ export default function SendControls({
       const initStatuses = new Array(contacts.length).fill('pending');
       setRowStatuses(initStatuses);
 
-      // Subscribe to real-time updates from the campaign document
-      if (snapshotUnsubRef.current) snapshotUnsubRef.current();
-      snapshotUnsubRef.current = onSnapshot(
-        doc(db, 'users', user.uid, 'campaigns', campaignId),
-        (snap) => {
-          if (!snap.exists()) return;
-          const d = snap.data();
-
-          // Derive rowStatuses array from the results map
-          const statuses = contacts.map((_, i) => {
-            const r = d.results?.[String(i)];
-            if (!r) return 'pending';
-            return r.status; // 'active' | 'success' | 'error' | 'pending'
-          });
-          setRowStatuses(statuses);
-
-          // Track current active contact
-          const activeIdx = statuses.findIndex(s => s === 'active');
-          if (activeIdx >= 0) setCurrentIdx(activeIdx);
-
-          // Sync paused state
-          setPaused(d.status === 'paused');
-
-          // Update sending flag
-          const isActive = ['running', 'queued', 'paused', 'stop_requested'].includes(d.status);
-          setSending(isActive);
-
-          // Handle terminal states
-          if (['completed', 'stopped', 'failed'].includes(d.status)) {
-            if (snapshotUnsubRef.current) {
-              snapshotUnsubRef.current();
-              snapshotUnsubRef.current = null;
-            }
-            localStorage.removeItem('activeCampaignId');
-            localStorage.removeItem('activeCampaignUid');
-            setSending(false);
-            setServerCampaignId(null);
-
-            const sent = d.sent || 0;
-            const failed = d.failed || 0;
-            if (onSendComplete) onSendComplete({ sent, failed });
-
-            const icon = d.status === 'completed' ? '✅' : d.status === 'stopped' ? '⏹' : '❌';
-            addLog(
-              `${icon} Campaign ${d.status}. ${sent} sent, ${failed} failed.`,
-              d.status === 'completed' ? 'success' : 'warn'
-            );
-          }
-        },
-        (err) => {
-          console.error('[SendControls] Snapshot error:', err);
-          addLog(`Snapshot error: ${err.message}`, 'error');
-        }
-      );
+      // App.jsx owns the Firestore snapshot (set up via onCampaignStarted callback above).
+      // No duplicate subscription needed here.
 
     } catch (err) {
       addLog(`✗ Failed to start campaign: ${err.message}`, 'error');

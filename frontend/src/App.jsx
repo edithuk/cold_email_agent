@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   collection, query, orderBy, getDocs, addDoc, updateDoc, doc,
-  serverTimestamp, getDoc,
+  serverTimestamp, getDoc, onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './context/AuthContext';
@@ -90,6 +90,12 @@ export default function App() {
   const pausedRef = useRef(false);
   const stopRef   = useRef(false);
 
+  // ── Firestore campaign snapshot (persists across navigation) ─────────────
+  const snapshotUnsubRef = useRef(null);
+  // Keep a stable ref to contacts so the snapshot callback always has the latest
+  const contactsRef = useRef(contacts);
+  useEffect(() => { contactsRef.current = contacts; }, [contacts]);
+
   // ── Logging helper ────────────────────────────────────────────────────────
   const addLog = useCallback((msg, type = 'info') => {
     setLogs(prev => [...prev, { msg, type, time: formatTime() }]);
@@ -122,6 +128,71 @@ export default function App() {
   }, [user]);
 
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
+
+  // ── Subscribe to real-time campaign updates ───────────────────────────────
+  // Fires whenever activeCampaignId is set — survives navigation between views.
+  useEffect(() => {
+    if (!user || !activeCampaignId) return;
+
+    // Tear down any existing subscription first
+    if (snapshotUnsubRef.current) {
+      snapshotUnsubRef.current();
+      snapshotUnsubRef.current = null;
+    }
+
+    const unsub = onSnapshot(
+      doc(db, 'users', user.uid, 'campaigns', activeCampaignId),
+      (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        const currentContacts = contactsRef.current;
+
+        // Rebuild rowStatuses from the results map
+        if (currentContacts.length > 0) {
+          const statuses = currentContacts.map((_, i) => {
+            const r = d.results?.[String(i)];
+            if (!r) return 'pending';
+            return r.status; // 'active' | 'success' | 'error' | 'pending'
+          });
+          setRowStatuses(statuses);
+
+          const activeIdx = statuses.findIndex(s => s === 'active');
+          if (activeIdx >= 0) setCurrentIdx(activeIdx);
+        }
+
+        setPaused(d.status === 'paused');
+        const isActive = ['running', 'queued', 'paused', 'stop_requested'].includes(d.status);
+        setSending(isActive);
+
+        // Handle terminal states
+        if (['completed', 'stopped', 'failed'].includes(d.status)) {
+          if (snapshotUnsubRef.current) {
+            snapshotUnsubRef.current();
+            snapshotUnsubRef.current = null;
+          }
+          localStorage.removeItem('activeCampaignId');
+          localStorage.removeItem('activeCampaignUid');
+          setSending(false);
+
+          const sent   = d.sent   || 0;
+          const failed = d.failed || 0;
+          setFinalSendStats({ sent, failed });
+
+          const icon = d.status === 'completed' ? '✅' : d.status === 'stopped' ? '⏹' : '❌';
+          addLog(
+            `${icon} Campaign ${d.status}. ${sent} sent, ${failed} failed.`,
+            d.status === 'completed' ? 'success' : 'warn'
+          );
+          loadCampaigns(); // Refresh dashboard list
+        }
+      },
+      (err) => console.error('[App] Campaign snapshot error:', err)
+    );
+
+    snapshotUnsubRef.current = unsub;
+    return () => { unsub(); snapshotUnsubRef.current = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeCampaignId]);
 
   // ── Page-reload recovery: re-attach to any in-progress campaign ───────────
   useEffect(() => {
@@ -263,34 +334,42 @@ export default function App() {
   }
 
   // ── Save campaign and return to dashboard ─────────────────────────────────
+  // When a server-side campaign is still running, just navigate home — Cloud
+  // Functions own the campaign doc and the snapshot will reconnect when the
+  // user returns. Only write to Firestore when the campaign has actually finished.
   async function handleDone() {
     if (user) {
       try {
-        const success = finalSendStats.sent;
-        const failed  = finalSendStats.failed;
-        const pending = Math.max(0, contacts.length - success - failed);
-        const wasStopped = stopRef.current && pending > 0;
-        const data = {
-          name:      campaignName || `Campaign – ${new Date().toLocaleDateString()}`,
-          contacts:  contacts.length,
-          sent:      success,
-          failed,
-          pending,
-          stages:    stages.length,
-          status:    wasStopped ? 'stopped' : success > 0 ? 'completed' : 'draft',
-          updatedAt: serverTimestamp(),
-        };
+        // If a server-side campaign is still running, don't touch the doc —
+        // Cloud Functions are writing to it. Just navigate home.
+        const serverSideActive = activeCampaignId && sending;
 
-        if (activeCampaignId) {
-          // For new-schema campaigns, the doc already has all the data — just update summary fields
-          await updateDoc(doc(db, 'users', user.uid, 'campaigns', activeCampaignId), {
-            name:      data.name,
+        if (!serverSideActive) {
+          const success = finalSendStats.sent;
+          const failed  = finalSendStats.failed;
+          const pending = Math.max(0, contacts.length - success - failed);
+          const wasStopped = stopRef.current && pending > 0;
+          const data = {
+            name:      campaignName || `Campaign – ${new Date().toLocaleDateString()}`,
+            contacts:  contacts.length,
+            sent:      success,
+            failed,
+            pending,
+            stages:    stages.length,
+            status:    wasStopped ? 'stopped' : success > 0 ? 'completed' : 'draft',
             updatedAt: serverTimestamp(),
-          });
-        } else {
-          data.createdAt = serverTimestamp();
-          const ref = await addDoc(collection(db, 'users', user.uid, 'campaigns'), data);
-          setActiveCampaignId(ref.id);
+          };
+
+          if (activeCampaignId) {
+            await updateDoc(doc(db, 'users', user.uid, 'campaigns', activeCampaignId), {
+              name:      data.name,
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            data.createdAt = serverTimestamp();
+            const ref = await addDoc(collection(db, 'users', user.uid, 'campaigns'), data);
+            setActiveCampaignId(ref.id);
+          }
         }
 
         await loadCampaigns();
@@ -302,8 +381,9 @@ export default function App() {
   }
 
   // ── Back to dashboard ─────────────────────────────────────────────────────
+  // Note: server-side campaigns keep running in Cloud Functions regardless of navigation.
+  // We no longer block navigation when sending — users can freely go home and return.
   function backToDashboard() {
-    if (sending) return;
     setView('dashboard');
   }
 

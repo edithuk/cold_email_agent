@@ -164,6 +164,12 @@ export default function CampaignWizard({
               ← Back
             </button>
           )}
+          {/* At step 4, always show a way to go home — cloud keeps running */}
+          {step === 4 && (
+            <button className="btn btn-secondary" onClick={onDone}>
+              ← Dashboard
+            </button>
+          )}
         </div>
 
         {/* Right group: context-aware primary action */}
