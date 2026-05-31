@@ -70,7 +70,10 @@ async function deriveKey(userId, salt) {
 async function decryptField(cipherBase64, userId, salt) {
   try {
     const key = await deriveKey(userId, salt);
-    const combined = Buffer.from(cipherBase64, 'base64');
+    const buf = Buffer.from(cipherBase64, 'base64');
+    // Ensure memory is completely copied to avoid Node WebCrypto offset bugs
+    const combined = new Uint8Array(buf.length);
+    combined.set(buf);
     const iv = combined.slice(0, 12);
     const ciphertext = combined.slice(12);
     const decrypted = await subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
@@ -219,7 +222,7 @@ exports.dispatchScheduledFollowUps = onSchedule(
     timeoutSeconds: 540,
   },
   async () => {
-    const salt = ENCRYPTION_SALT.value();
+    const salt = ENCRYPTION_SALT.value().trim();
     const now = Timestamp.now();
     console.log(`[scheduler] Running at ${now.toDate().toISOString()}`);
 
@@ -334,7 +337,7 @@ exports.processCampaignChunk = onDocumentWritten(
 
     const { uid, campaignId } = event.params;
     const campaignRef = db.doc(`users/${uid}/campaigns/${campaignId}`);
-    const salt = ENCRYPTION_SALT.value();
+    const salt = ENCRYPTION_SALT.value().trim();
 
     const chunkIdx = after.currentChunkIdx ?? 0;
     const chunkSize = after.chunkSize ?? 25;

@@ -8,7 +8,10 @@ export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign, on
   const successRate = totalSent > 0
     ? Math.round(((totalSent - totalFailed) / totalSent) * 100)
     : 0;
-  const totalContacts = campaigns.reduce((s, c) => s + (c.contacts || 0), 0);
+  const totalContacts = campaigns.reduce((s, c) => {
+    const count = Array.isArray(c.contacts) ? c.contacts.length : (typeof c.contacts === 'number' ? c.contacts : (c.total || 0));
+    return s + count;
+  }, 0);
 
   function formatDate(ts) {
     if (!ts) return '';
@@ -80,10 +83,10 @@ export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign, on
               </div>
               <div className="campaign-card-date">{formatDate(c.createdAt)}</div>
               <div className="campaign-card-stats">
-                <span className="campaign-stat"><strong>{c.contacts || 0}</strong> contacts</span>
+                <span className="campaign-stat"><strong>{Array.isArray(c.contacts) ? c.contacts.length : (typeof c.contacts === 'number' ? c.contacts : (c.total || 0))}</strong> contacts</span>
                 <span className="campaign-stat"><strong>{c.sent || 0}</strong> sent</span>
                 <span className="campaign-stat"><strong>{c.failed || 0}</strong> failed</span>
-                <span className="campaign-stat"><strong>{c.stages || 1}</strong> stage{(c.stages || 1) > 1 ? 's' : ''}</span>
+                <span className="campaign-stat"><strong>{Array.isArray(c.stages) ? c.stages.length : (typeof c.stages === 'number' ? c.stages : 1)}</strong> stage{(Array.isArray(c.stages) ? c.stages.length : (typeof c.stages === 'number' ? c.stages : 1)) > 1 ? 's' : ''}</span>
               </div>
             </div>
           ))}
