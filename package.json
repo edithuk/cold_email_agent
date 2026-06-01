@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "Cold Email Agent - Sleek, minimalistic tool for sending personalized cold emails with resumes.",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix frontend\" \"npm run start --prefix backend\"",
-    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
+    "dev": "npm run dev:local",
+    "dev:local": "concurrently --names \"EMULATOR,FRONTEND\" --prefix-colors \"yellow,cyan\" \"firebase emulators:start --only auth,functions,firestore,pubsub\" \"npm run dev --prefix frontend\"",
+    "dev:prod": "VITE_USE_EMULATOR=false npm run dev --prefix frontend",
+    "install:all": "npm install && npm install --prefix frontend && npm install --prefix functions"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
