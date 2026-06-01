@@ -35,6 +35,7 @@ export default function CampaignWizard({
   onStop,
   pausedRef,
   stopRef,
+  onCampaignStarted,
 }) {
   const hasTemplate = stages.some(s => s.subject && s.body);
   const canSend = credState.credStatus === 'ok'
@@ -131,6 +132,7 @@ export default function CampaignWizard({
               stopRef={stopRef}
               onTogglePause={onTogglePause}
               onStop={onStop}
+              onCampaignStarted={onCampaignStarted}
             />
           )}
           {step === 4 && (
@@ -160,6 +162,12 @@ export default function CampaignWizard({
           {step > 1 && step < 4 && !sending && (
             <button className="btn btn-secondary" onClick={() => setStep(step - 1)}>
               ← Back
+            </button>
+          )}
+          {/* At step 4, always show a way to go home — cloud keeps running */}
+          {step === 4 && (
+            <button className="btn btn-secondary" onClick={onDone}>
+              ← Dashboard
             </button>
           )}
         </div>

@@ -4,16 +4,26 @@ service cloud.firestore {
 
     // ── User-scoped data ────────────────────────────────────────────────────
     // Only the authenticated user can read/write their own profile, credentials,
-    // templates, and scheduled_jobs.
+    // templates, scheduled_jobs, campaigns, and account_queues.
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ── Scheduled Jobs – collectionGroup read for Cloud Functions ───────────
+    // ── Scheduled Jobs – explicit rule (redundant but documents intent) ──────
     // Firebase Admin SDK (used by Cloud Functions) bypasses security rules
     // entirely, so no special rule is needed for the backend.
-    // This rule allows a signed-in user to query their own jobs only.
     match /users/{userId}/scheduled_jobs/{jobId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Background Campaigns (new schema) ────────────────────────────────────
+    match /users/{userId}/campaigns/{campaignId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Account Queue (one doc per sender email) ──────────────────────────────
+    // Tracks which campaign is active and what is pending per Gmail account.
+    match /users/{userId}/account_queues/{senderEmail} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }

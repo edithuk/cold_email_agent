@@ -1,14 +1,17 @@
 /**
  * Dashboard – Campaign history grid with quick stats.
  */
-export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign }) {
+export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign, onOpenQueue }) {
   // Aggregate stats across all campaigns
   const totalSent   = campaigns.reduce((s, c) => s + (c.sent || 0), 0);
   const totalFailed = campaigns.reduce((s, c) => s + (c.failed || 0), 0);
   const successRate = totalSent > 0
     ? Math.round(((totalSent - totalFailed) / totalSent) * 100)
     : 0;
-  const totalContacts = campaigns.reduce((s, c) => s + (c.contacts || 0), 0);
+  const totalContacts = campaigns.reduce((s, c) => {
+    const count = Array.isArray(c.contacts) ? c.contacts.length : (typeof c.contacts === 'number' ? c.contacts : (c.total || 0));
+    return s + count;
+  }, 0);
 
   function formatDate(ts) {
     if (!ts) return '';
@@ -26,9 +29,14 @@ export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign }) 
             Manage and track all your outreach campaigns
           </div>
         </div>
-        <button className="btn btn-primary" onClick={onNewCampaign}>
-          + New Campaign
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={onOpenQueue}>
+            📬 Send Queue
+          </button>
+          <button className="btn btn-primary" onClick={onNewCampaign}>
+            + New Campaign
+          </button>
+        </div>
       </div>
 
       {/* Stats bar */}
@@ -75,10 +83,10 @@ export default function Dashboard({ campaigns, onNewCampaign, onOpenCampaign }) 
               </div>
               <div className="campaign-card-date">{formatDate(c.createdAt)}</div>
               <div className="campaign-card-stats">
-                <span className="campaign-stat"><strong>{c.contacts || 0}</strong> contacts</span>
+                <span className="campaign-stat"><strong>{Array.isArray(c.contacts) ? c.contacts.length : (typeof c.contacts === 'number' ? c.contacts : (c.total || 0))}</strong> contacts</span>
                 <span className="campaign-stat"><strong>{c.sent || 0}</strong> sent</span>
                 <span className="campaign-stat"><strong>{c.failed || 0}</strong> failed</span>
-                <span className="campaign-stat"><strong>{c.stages || 1}</strong> stage{(c.stages || 1) > 1 ? 's' : ''}</span>
+                <span className="campaign-stat"><strong>{Array.isArray(c.stages) ? c.stages.length : (typeof c.stages === 'number' ? c.stages : 1)}</strong> stage{(Array.isArray(c.stages) ? c.stages.length : (typeof c.stages === 'number' ? c.stages : 1)) > 1 ? 's' : ''}</span>
               </div>
             </div>
           ))}

@@ -17,7 +17,7 @@ function formatDate(ts) {
 
 function timeUntil(ts) {
   if (!ts) return '';
-  const d    = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
   const diff = d - Date.now();
   if (diff <= 0) return 'Due now';
   const h = Math.floor(diff / 3_600_000);
@@ -28,9 +28,9 @@ function timeUntil(ts) {
 
 export default function ScheduledJobsPanel() {
   const { user } = useAuth();
-  const [jobs,     setJobs]     = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [filter,   setFilter]   = useState('pending');  // 'pending' | 'sent' | 'failed' | 'all'
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('pending');  // 'pending' | 'sent' | 'failed' | 'all'
   const [cancellingId, setCancellingId] = useState(null);
 
   // ── Real-time listener ───────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export default function ScheduledJobsPanel() {
     const q = query(
       collection(db, 'users', user.uid, 'scheduled_jobs'),
       orderBy('sendAfter', 'asc'),
-      limit(100),
+      limit(300),
     );
 
     const unsub = onSnapshot(q, snap => {
@@ -78,8 +78,8 @@ export default function ScheduledJobsPanel() {
 
   const counts = {
     pending: jobs.filter(j => j.status === 'pending' || j.status === 'sending').length,
-    sent:    jobs.filter(j => j.status === 'sent').length,
-    failed:  jobs.filter(j => j.status === 'failed').length,
+    sent: jobs.filter(j => j.status === 'sent').length,
+    failed: jobs.filter(j => j.status === 'failed').length,
   };
 
   return (
@@ -95,9 +95,9 @@ export default function ScheduledJobsPanel() {
       <div className="jobs-filter-row">
         {[
           { key: 'pending', label: `Pending (${counts.pending})` },
-          { key: 'sent',    label: `Sent (${counts.sent})` },
-          { key: 'failed',  label: `Failed (${counts.failed})` },
-          { key: 'all',     label: `All (${jobs.length})` },
+          { key: 'sent', label: `Sent (${counts.sent})` },
+          { key: 'failed', label: `Failed (${counts.failed})` },
+          { key: 'all', label: `All (${jobs.length})` },
         ].map(f => (
           <button
             key={f.key}
@@ -121,12 +121,12 @@ export default function ScheduledJobsPanel() {
         <div className="jobs-empty">
           {filter === 'pending'
             ? <>
-                <span style={{ fontSize: 20 }}>📭</span>
-                No pending scheduled emails.<br />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Schedule a Drip campaign to queue emails for later.
-                </span>
-              </>
+              <span style={{ fontSize: 20 }}>📭</span>
+              No pending scheduled emails.<br />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Schedule a Drip campaign to queue emails for later.
+              </span>
+            </>
             : `No ${filter} jobs.`
           }
         </div>
@@ -140,8 +140,8 @@ export default function ScheduledJobsPanel() {
                 <span className="job-status-dot-wrap">
                   {job.status === 'pending' && <span className="job-dot dot-pending" title="Pending" />}
                   {job.status === 'sending' && <span className="spinner" style={{ width: 10, height: 10 }} />}
-                  {job.status === 'sent'    && <span className="job-dot dot-sent"    title="Sent" />}
-                  {job.status === 'failed'  && <span className="job-dot dot-failed"  title="Failed" />}
+                  {job.status === 'sent' && <span className="job-dot dot-sent" title="Sent" />}
+                  {job.status === 'failed' && <span className="job-dot dot-failed" title="Failed" />}
                 </span>
                 <div className="job-card-main">
                   <div className="job-card-title">
