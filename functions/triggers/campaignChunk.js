@@ -103,6 +103,16 @@ exports.processCampaignChunk = onDocumentWritten(
       const recipientEmail = row[colMap.email]?.toString().trim() || '';
       const recipientName = colMap.name ? row[colMap.name]?.toString().trim() : '';
 
+      // ── IDEMPOTENCY CHECK: skip contacts already successfully sent ────────
+      // This guards against duplicate sends when the function is retried after
+      // a timeout or crash (the contact loop restarts from `start` but the
+      // Firestore results map already reflects what was done in the prior run).
+      const existingResult = after.results?.[String(i)];
+      if (existingResult?.status === 'success') {
+        console.log(`[chunk] Contact ${i} (${recipientEmail}) already sent — skipping.`);
+        continue;
+      }
+
       // Mark contact as active (doesn't advance chunkIdx → guard filters re-entry).
       await campaignRef.update({
         [`results.${i}`]: { status: 'active' },
